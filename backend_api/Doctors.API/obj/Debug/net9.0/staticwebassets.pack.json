@@ -1,0 +1,29 @@
+{
+  "Files": [
+    {
+      "Id": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic",
+      "PackagePath": "staticwebassets\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic"
+    },
+    {
+      "Id": "obj\\Debug\\net9.0\\staticwebassets\\msbuild.Doctors.API.Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssetEndpoints.props"
+    },
+    {
+      "Id": "obj\\Debug\\net9.0\\staticwebassets\\msbuild.Doctors.API.Microsoft.AspNetCore.StaticWebAssets.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "Id": "obj\\Debug\\net9.0\\staticwebassets\\msbuild.build.Doctors.API.props",
+      "PackagePath": "build\\Doctors.API.props"
+    },
+    {
+      "Id": "obj\\Debug\\net9.0\\staticwebassets\\msbuild.buildMultiTargeting.Doctors.API.props",
+      "PackagePath": "buildMultiTargeting\\Doctors.API.props"
+    },
+    {
+      "Id": "obj\\Debug\\net9.0\\staticwebassets\\msbuild.buildTransitive.Doctors.API.props",
+      "PackagePath": "buildTransitive\\Doctors.API.props"
+    }
+  ],
+  "ElementsToRemove": []
+}

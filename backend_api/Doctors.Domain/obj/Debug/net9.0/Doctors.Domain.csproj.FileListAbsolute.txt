@@ -1,0 +1,11 @@
+E:\Users\abood\cursor_project\backend_api\Doctors.Domain\bin\Debug\net9.0\Doctors.Domain.deps.json
+E:\Users\abood\cursor_project\backend_api\Doctors.Domain\bin\Debug\net9.0\Doctors.Domain.dll
+E:\Users\abood\cursor_project\backend_api\Doctors.Domain\bin\Debug\net9.0\Doctors.Domain.pdb
+E:\Users\abood\cursor_project\backend_api\Doctors.Domain\obj\Debug\net9.0\Doctors.Domain.GeneratedMSBuildEditorConfig.editorconfig
+E:\Users\abood\cursor_project\backend_api\Doctors.Domain\obj\Debug\net9.0\Doctors.Domain.AssemblyInfoInputs.cache
+E:\Users\abood\cursor_project\backend_api\Doctors.Domain\obj\Debug\net9.0\Doctors.Domain.AssemblyInfo.cs
+E:\Users\abood\cursor_project\backend_api\Doctors.Domain\obj\Debug\net9.0\Doctors.Domain.csproj.CoreCompileInputs.cache
+E:\Users\abood\cursor_project\backend_api\Doctors.Domain\obj\Debug\net9.0\Doctors.Domain.dll
+E:\Users\abood\cursor_project\backend_api\Doctors.Domain\obj\Debug\net9.0\refint\Doctors.Domain.dll
+E:\Users\abood\cursor_project\backend_api\Doctors.Domain\obj\Debug\net9.0\Doctors.Domain.pdb
+E:\Users\abood\cursor_project\backend_api\Doctors.Domain\obj\Debug\net9.0\ref\Doctors.Domain.dll

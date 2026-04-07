@@ -1,0 +1,88 @@
+{
+  "Version": 1,
+  "ManifestType": "Build",
+  "Endpoints": [
+    {
+      "Route": "uploads/20260407/600ff0c8612040568c1a2344be5add37.heic",
+      "AssetFile": "uploads/20260407/600ff0c8612040568c1a2344be5add37.heic",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "1065008"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "application/octet-stream"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Tue, 07 Apr 2026 21:39:38 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE="
+        }
+      ]
+    },
+    {
+      "Route": "uploads/20260407/600ff0c8612040568c1a2344be5add37.w7u4snj0pd.heic",
+      "AssetFile": "uploads/20260407/600ff0c8612040568c1a2344be5add37.heic",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "1065008"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "application/octet-stream"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Tue, 07 Apr 2026 21:39:38 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "w7u4snj0pd"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE="
+        },
+        {
+          "Name": "label",
+          "Value": "uploads/20260407/600ff0c8612040568c1a2344be5add37.heic"
+        }
+      ]
+    }
+  ]
+}

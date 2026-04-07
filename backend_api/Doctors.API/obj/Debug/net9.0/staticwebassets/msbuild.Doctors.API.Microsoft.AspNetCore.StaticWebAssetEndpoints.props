@@ -1,0 +1,16 @@
+﻿<Project>
+  <ItemGroup>
+    <StaticWebAssetEndpoint Include="_content/Doctors.API/uploads/20260407/600ff0c8612040568c1a2344be5add37.heic">
+      <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\uploads\20260407\600ff0c8612040568c1a2344be5add37.heic'))</AssetFile>
+      <Selectors><![CDATA[[]]]></Selectors>
+      <EndpointProperties><![CDATA[[{"Name":"integrity","Value":"sha256-BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE="}]]]></EndpointProperties>
+      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"no-cache"},{"Name":"Content-Length","Value":"1065008"},{"Name":"Content-Type","Value":"application/octet-stream"},{"Name":"ETag","Value":"\u0022BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE=\u0022"},{"Name":"Last-Modified","Value":"Tue, 07 Apr 2026 21:39:38 GMT"}]]]></ResponseHeaders>
+    </StaticWebAssetEndpoint>
+    <StaticWebAssetEndpoint Include="_content/Doctors.API/uploads/20260407/600ff0c8612040568c1a2344be5add37.w7u4snj0pd.heic">
+      <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\uploads\20260407\600ff0c8612040568c1a2344be5add37.heic'))</AssetFile>
+      <Selectors><![CDATA[[]]]></Selectors>
+      <EndpointProperties><![CDATA[[{"Name":"fingerprint","Value":"w7u4snj0pd"},{"Name":"integrity","Value":"sha256-BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE="},{"Name":"label","Value":"_content/Doctors.API/uploads/20260407/600ff0c8612040568c1a2344be5add37.heic"}]]]></EndpointProperties>
+      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"max-age=31536000, immutable"},{"Name":"Content-Length","Value":"1065008"},{"Name":"Content-Type","Value":"application/octet-stream"},{"Name":"ETag","Value":"\u0022BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE=\u0022"},{"Name":"Last-Modified","Value":"Tue, 07 Apr 2026 21:39:38 GMT"}]]]></ResponseHeaders>
+    </StaticWebAssetEndpoint>
+  </ItemGroup>
+</Project>

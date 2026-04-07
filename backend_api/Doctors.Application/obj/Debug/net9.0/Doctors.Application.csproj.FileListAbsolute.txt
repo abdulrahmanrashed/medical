@@ -1,0 +1,15 @@
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\obj\Debug\net9.0\Doctors.Application.csproj.AssemblyReference.cache
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\obj\Debug\net9.0\Doctors.Application.GeneratedMSBuildEditorConfig.editorconfig
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\obj\Debug\net9.0\Doctors.Application.AssemblyInfoInputs.cache
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\obj\Debug\net9.0\Doctors.Application.AssemblyInfo.cs
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\obj\Debug\net9.0\Doctors.Application.csproj.CoreCompileInputs.cache
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\bin\Debug\net9.0\Doctors.Application.deps.json
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\bin\Debug\net9.0\Doctors.Application.dll
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\bin\Debug\net9.0\Doctors.Application.pdb
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\bin\Debug\net9.0\Doctors.Domain.dll
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\bin\Debug\net9.0\Doctors.Domain.pdb
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\obj\Debug\net9.0\Doctors..001FB560.Up2Date
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\obj\Debug\net9.0\Doctors.Application.dll
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\obj\Debug\net9.0\refint\Doctors.Application.dll
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\obj\Debug\net9.0\Doctors.Application.pdb
+E:\Users\abood\cursor_project\backend_api\Doctors.Application\obj\Debug\net9.0\ref\Doctors.Application.dll
