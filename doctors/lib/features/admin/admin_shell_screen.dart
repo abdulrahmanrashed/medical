@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/layout/responsive.dart';
 import '../../core/network/backend_api_client.dart';
 import '../../widgets/add_patient_draft_card.dart';
+import 'admin_billing_history_screen.dart';
 import 'admin_clinics_manage_panel.dart';
 
 class AdminShellScreen extends StatefulWidget {
@@ -15,19 +16,20 @@ class AdminShellScreen extends StatefulWidget {
 class _AdminShellScreenState extends State<AdminShellScreen> {
   int _index = 0;
 
-  final GlobalKey<AdminClinicsManagePanelState> _clinicsKey =
-      GlobalKey<AdminClinicsManagePanelState>();
+  Future<void> Function()? _reloadClinics;
 
   final _titles = const [
     'Dashboard',
     'Clinics',
     'Doctors',
+    'Billing',
   ];
 
   final _destinations = const [
     NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'),
     NavigationDestination(icon: Icon(Icons.local_hospital_outlined), label: 'Clinics'),
     NavigationDestination(icon: Icon(Icons.badge_outlined), label: 'Doctors'),
+    NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Billing'),
   ];
 
   @override
@@ -36,11 +38,17 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       builder: (context, constraints) {
         final isTablet = Responsive.isTablet(constraints.maxWidth);
         return Scaffold(
-          appBar: AppBar(title: Text('Admin · ${_titles[_index]}')),
+          appBar: AppBar(
+            title: Text('Admin · ${_titles[_index]}'),
+          ),
           floatingActionButton: _index == 1
               ? FloatingActionButton.extended(
-                  onPressed: () =>
-                      _clinicsKey.currentState?.showAddClinicSheet(),
+                  onPressed: () => showAddClinicSheet(
+                    context,
+                    onSuccess: () async {
+                      await _reloadClinics?.call();
+                    },
+                  ),
                   icon: const Icon(Icons.add),
                   label: const Text('Add clinic'),
                   backgroundColor: const Color(0xFF004D40),
@@ -67,6 +75,10 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                           icon: Icon(Icons.badge_outlined),
                           label: Text('Doctors'),
                         ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.receipt_long_outlined),
+                          label: Text('Billing'),
+                        ),
                       ],
                     ),
                     const VerticalDivider(width: 1),
@@ -89,8 +101,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   Widget _body() {
     return switch (_index) {
       0 => _DashboardPanel(),
-      1 => AdminClinicsManagePanel(key: _clinicsKey),
-      _ => const _DoctorsPanel(),
+      1 => AdminClinicsManagePanel(
+          onReloadReady: (reload) => _reloadClinics = reload,
+        ),
+      2 => const _DoctorsPanel(),
+      _ => const AdminBillingHistoryScreen(),
     };
   }
 }
@@ -217,6 +232,8 @@ class _DoctorsPanel extends StatelessWidget {
                   final doctors = doctorsSnap.data ?? const <Map<String, dynamic>>[];
                   return Card(
                     child: ExpansionTile(
+                      shape: const Border(), 
+                      collapsedShape: const Border(),
                       title: Text(c['name']?.toString() ?? 'Clinic'),
                       subtitle: Text('${doctors.length} doctors'),
                       children: [
@@ -226,7 +243,11 @@ class _DoctorsPanel extends StatelessWidget {
                             title: Text(
                               '${d['firstName'] ?? ''} ${d['lastName'] ?? ''}'.trim(),
                             ),
-                            subtitle: Text(d['specialization']?.toString() ?? ''),
+                            subtitle: Text(
+                              d['isActive'] == false
+                                  ? '${d['specialization'] ?? ''} · Frozen'
+                                  : (d['specialization']?.toString() ?? ''),
+                            ),
                           ),
                       ],
                     ),

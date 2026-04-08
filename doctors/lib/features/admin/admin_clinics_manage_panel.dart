@@ -1,195 +1,202 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/layout/responsive.dart';
 import '../../core/network/backend_api_client.dart';
 
 const Color _kPrimary = Color(0xFF004D40);
 const Color _kSurface = Color(0xFFF5F5F5);
+const Color _kAlertRed = Color(0xFFB00020);
 
-bool _clinicIsPaid(Map<String, dynamic> c) {
+bool _clinicSwitchIsPaid(Map<String, dynamic> c) {
   final v = c['paymentStatus'];
-  if (v is String) {
-    final s = v.toLowerCase();
-    return s == 'paid' || s == '1';
-  }
   if (v is int) return v == 1;
+  if (v is String) return v.toLowerCase() == 'paid';
   return false;
 }
 
-/// System admin: list / create / delete clinics (GET/POST/DELETE /api/Clinics).
-class AdminClinicsManagePanel extends StatefulWidget {
-  const AdminClinicsManagePanel({super.key});
-
-  @override
-  State<AdminClinicsManagePanel> createState() => AdminClinicsManagePanelState();
+bool _paymentStatusIsFrozen(Map<String, dynamic> c) {
+  final v = c['paymentStatus'];
+  if (v is int) return v == 2;
+  if (v is String) return v.toLowerCase() == 'frozen';
+  return false;
 }
 
-class AdminClinicsManagePanelState extends State<AdminClinicsManagePanel> {
-  late Future<List<Map<String, dynamic>>> _future;
+bool _subscriptionUiIsFrozen(Map<String, dynamic> c) {
+  final v = c['subscriptionStatus'];
+  if (v is int) return v == 2;
+  if (v is String) return v.toLowerCase() == 'frozen';
+  return false;
+}
+
+DateTime? _parseJsonDate(dynamic v) {
+  if (v == null) return null;
+  if (v is String) return DateTime.tryParse(v);
+  return null;
+}
+
+/// Red highlight: API frozen, subscription UI frozen, or subscription end date in the past.
+bool _isClinicBillingAlert(Map<String, dynamic> c) {
+  if (_paymentStatusIsFrozen(c) || _subscriptionUiIsFrozen(c)) return true;
+  final end = _parseJsonDate(c['subscriptionEndDate']);
+  if (end == null) return false;
+  return !end.toUtc().isAfter(DateTime.now().toUtc());
+}
+
+String _formatMoney(dynamic v) {
+  final n = (v is num) ? v.toDouble() : double.tryParse('$v') ?? 0;
+  return NumberFormat.currency(symbol: r'$').format(n);
+}
+
+/// Mapped from API `ownerFullName` (Identity first + last name).
+String? _clinicOwnerFullName(Map<String, dynamic> c) {
+  final v = c['ownerFullName']?.toString().trim();
+  if (v != null && v.isNotEmpty) return v;
+  return null;
+}
+
+/// Mapped from API `ownerEmail` (ClinicAdmin login).
+String? _clinicOwnerEmail(Map<String, dynamic> c) {
+  final v = c['ownerEmail']?.toString().trim();
+  if (v != null && v.isNotEmpty) return v;
+  return null;
+}
+
+Future<void> showAddClinicSheet(
+  BuildContext anchorContext, {
+  required Future<void> Function() onSuccess,
+}) async {
+  final ok = await showModalBottomSheet<bool>(
+    context: anchorContext,
+    isScrollControlled: true,
+    showDragHandle: true,
+    useSafeArea: true,
+    builder: (ctx) => const _AddClinicFormSheet(),
+  );
+
+  if (ok == true && anchorContext.mounted) {
+    ScaffoldMessenger.of(anchorContext).showSnackBar(
+      const SnackBar(content: Text('Clinic created. Owner can sign in under Clinic Management.')),
+    );
+    await onSuccess();
+  }
+}
+
+Future<void> showEditPaymentSheet(
+  BuildContext anchorContext, {
+  required Map<String, dynamic> clinic,
+  required Future<void> Function() onSuccess,
+}) async {
+  final ok = await showModalBottomSheet<bool>(
+    context: anchorContext,
+    isScrollControlled: true,
+    showDragHandle: true,
+    useSafeArea: true,
+    builder: (ctx) => _EditPaymentSheet(clinic: clinic),
+  );
+  if (ok == true && anchorContext.mounted) {
+    ScaffoldMessenger.of(anchorContext).showSnackBar(
+      const SnackBar(content: Text('Payment recorded.')),
+    );
+    await onSuccess();
+  }
+}
+
+class _AddClinicFormSheet extends StatefulWidget {
+  const _AddClinicFormSheet();
+
+  @override
+  State<_AddClinicFormSheet> createState() => _AddClinicFormSheetState();
+}
+
+class _AddClinicFormSheetState extends State<_AddClinicFormSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _addressCtrl;
+  late final TextEditingController _phoneCtrl;
+  late final TextEditingController _emailCtrl;
+  late final TextEditingController _adminEmailCtrl;
+  late final TextEditingController _adminPassCtrl;
+  late final TextEditingController _adminFirstCtrl;
+  late final TextEditingController _adminLastCtrl;
+  late final TextEditingController _totalCtrl;
+  late final TextEditingController _paidCtrl;
+  DateTime? _subscriptionEndDate;
+  bool _submitting = false;
 
   @override
   void initState() {
     super.initState();
-    _future = BackendApiClient.instance.getClinics();
+    _nameCtrl = TextEditingController();
+    _addressCtrl = TextEditingController();
+    _phoneCtrl = TextEditingController();
+    _emailCtrl = TextEditingController();
+    _adminEmailCtrl = TextEditingController();
+    _adminPassCtrl = TextEditingController();
+    _adminFirstCtrl = TextEditingController();
+    _adminLastCtrl = TextEditingController();
+    _totalCtrl = TextEditingController(text: '0');
+    _paidCtrl = TextEditingController(text: '0');
   }
 
-  Future<void> reload() async {
-    setState(() {
-      _future = BackendApiClient.instance.getClinics();
-    });
-    await _future;
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _addressCtrl.dispose();
+    _phoneCtrl.dispose();
+    _emailCtrl.dispose();
+    _adminEmailCtrl.dispose();
+    _adminPassCtrl.dispose();
+    _adminFirstCtrl.dispose();
+    _adminLastCtrl.dispose();
+    _totalCtrl.dispose();
+    _paidCtrl.dispose();
+    super.dispose();
   }
 
-  Future<void> showAddClinicSheet() async {
-    final nameCtrl = TextEditingController();
-    final addressCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    final adminEmailCtrl = TextEditingController();
-    final adminPassCtrl = TextEditingController();
-    final adminFirstCtrl = TextEditingController();
-    final adminLastCtrl = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    final ok = await showModalBottomSheet<bool>(
+  Future<void> _pickEndDate() async {
+    final now = DateTime.now();
+    final initial = _subscriptionEndDate ?? now.add(const Duration(days: 365));
+    final d = await showDatePicker(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (ctx) {
-        final pad = MediaQuery.viewInsetsOf(ctx);
-        return Padding(
-          padding: EdgeInsets.only(left: 20, right: 20, top: 8, bottom: pad.bottom + 20),
-          child: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text('New clinic', style: Theme.of(ctx).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Clinic owner (Clinic Management login)',
-                    style: Theme.of(ctx).textTheme.titleSmall?.copyWith(color: _kPrimary),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Clinic name *',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: addressCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Address',
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: 2,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: phoneCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.phone,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: emailCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Clinic contact email',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-                  const SizedBox(height: 20),
-                  Text('Clinic owner account', style: Theme.of(ctx).textTheme.titleSmall),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: adminEmailCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Owner email *',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: adminPassCtrl,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Owner password *',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) =>
-                        (v == null || v.length < 8) ? 'Min 8 characters' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: adminFirstCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Owner first name *',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: adminLastCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Owner last name *',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: _kPrimary),
-                    onPressed: () {
-                      if (formKey.currentState?.validate() ?? false) {
-                        Navigator.pop(ctx, true);
-                      }
-                    },
-                    child: const Text('Create'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+      initialDate: DateTime(initial.year, initial.month, initial.day),
+      firstDate: now.subtract(const Duration(days: 1)),
+      lastDate: now.add(const Duration(days: 365 * 5)),
     );
+    if (d == null || !mounted) return;
+    setState(() {
+      _subscriptionEndDate = DateTime(d.year, d.month, d.day, 23, 59, 59).toUtc();
+    });
+  }
 
+  Future<void> _submit() async {
+    if (_submitting) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final total = double.tryParse(_totalCtrl.text.trim()) ?? 0;
+    final paid = double.tryParse(_paidCtrl.text.trim()) ?? 0;
+    if (paid > total) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Paid amount cannot exceed total.')),
+      );
+      return;
+    }
+    setState(() => _submitting = true);
     try {
-      if (ok == true) {
-        await BackendApiClient.instance.createClinic(
-          name: nameCtrl.text.trim(),
-          address: addressCtrl.text.trim().isEmpty ? null : addressCtrl.text.trim(),
-          phone: phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
-          email: emailCtrl.text.trim().isEmpty ? null : emailCtrl.text.trim(),
-          clinicAdminEmail: adminEmailCtrl.text.trim(),
-          clinicAdminPassword: adminPassCtrl.text,
-          clinicAdminFirstName: adminFirstCtrl.text.trim(),
-          clinicAdminLastName: adminLastCtrl.text.trim(),
-        );
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Clinic created. Owner can sign in under Clinic Management.')),
-          );
-          reload();
-        }
-      }
+      await BackendApiClient.instance.createClinic(
+        name: _nameCtrl.text.trim(),
+        address: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+        email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
+        clinicAdminEmail: _adminEmailCtrl.text.trim(),
+        clinicAdminPassword: _adminPassCtrl.text,
+        clinicAdminFirstName: _adminFirstCtrl.text.trim(),
+        clinicAdminLastName: _adminLastCtrl.text.trim(),
+        totalAmount: total,
+        paidAmount: paid,
+        subscriptionEndDate: _subscriptionEndDate,
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -197,15 +204,340 @@ class AdminClinicsManagePanelState extends State<AdminClinicsManagePanel> {
         );
       }
     } finally {
-      nameCtrl.dispose();
-      addressCtrl.dispose();
-      phoneCtrl.dispose();
-      emailCtrl.dispose();
-      adminEmailCtrl.dispose();
-      adminPassCtrl.dispose();
-      adminFirstCtrl.dispose();
-      adminLastCtrl.dispose();
+      if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pad = MediaQuery.viewInsetsOf(context);
+    final dateFmt = DateFormat.yMMMd();
+    return Padding(
+      padding: EdgeInsets.only(left: 20, right: 20, top: 8, bottom: pad.bottom + 20),
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('New clinic', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              Text(
+                'Clinic owner (Clinic Management login)',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(color: _kPrimary),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Clinic name *',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _addressCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Address',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _phoneCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Phone',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _emailCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Clinic contact email',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 16),
+              Text('Billing', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _totalCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Total amount',
+                  border: OutlineInputBorder(),
+                  prefixText: r'$ ',
+                ),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _paidCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Paid amount',
+                  border: OutlineInputBorder(),
+                  prefixText: r'$ ',
+                ),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Subscription end date'),
+                subtitle: Text(
+                  _subscriptionEndDate == null
+                      ? 'Optional — tap to choose'
+                      : dateFmt.format(_subscriptionEndDate!.toLocal()),
+                ),
+                trailing: const Icon(Icons.calendar_today_outlined),
+                onTap: _pickEndDate,
+              ),
+              const SizedBox(height: 12),
+              Text('Clinic owner account', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _adminEmailCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Owner email *',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _adminPassCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Owner password *',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => (v == null || v.length < 8) ? 'Min 8 characters' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _adminFirstCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Owner first name *',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _adminLastCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Owner last name *',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 20),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: _kPrimary),
+                onPressed: _submitting ? null : _submit,
+                child: _submitting
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Create'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EditPaymentSheet extends StatefulWidget {
+  const _EditPaymentSheet({required this.clinic});
+
+  final Map<String, dynamic> clinic;
+
+  @override
+  State<_EditPaymentSheet> createState() => _EditPaymentSheetState();
+}
+
+class _EditPaymentSheetState extends State<_EditPaymentSheet> {
+  late final TextEditingController _amountCtrl;
+  DateTime? _nextExpiry;
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountCtrl = TextEditingController();
+    final end = _parseJsonDate(widget.clinic['subscriptionEndDate']);
+    _nextExpiry = end ?? DateTime.now().add(const Duration(days: 365));
+  }
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickExpiry() async {
+    final now = DateTime.now();
+    final initial = _nextExpiry ?? now.add(const Duration(days: 365));
+    final d = await showDatePicker(
+      context: context,
+      initialDate: DateTime(initial.year, initial.month, initial.day),
+      firstDate: now.subtract(const Duration(days: 1)),
+      lastDate: now.add(const Duration(days: 365 * 10)),
+    );
+    if (d == null || !mounted) return;
+    setState(() {
+      _nextExpiry = DateTime(d.year, d.month, d.day, 23, 59, 59).toUtc();
+    });
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    final amount = double.tryParse(_amountCtrl.text.trim()) ?? 0;
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a payment amount greater than zero.')),
+      );
+      return;
+    }
+    final expiry = _nextExpiry;
+    if (expiry == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Choose a subscription end date.')),
+      );
+      return;
+    }
+    final id = (widget.clinic['id'] as num?)?.toInt();
+    if (id == null) return;
+
+    setState(() => _submitting = true);
+    try {
+      await BackendApiClient.instance.recordClinicPayment(
+        clinicId: id,
+        amountPaid: amount,
+        nextExpiryDate: expiry,
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pad = MediaQuery.viewInsetsOf(context);
+    final dateFmt = DateFormat.yMMMd();
+    final name = widget.clinic['name']?.toString() ?? 'Clinic';
+
+    return Padding(
+      padding: EdgeInsets.only(left: 20, right: 20, top: 8, bottom: pad.bottom + 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Edit payment · $name', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text(
+            'Adds to paid balance and records an invoice. Set the new subscription end date.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _amountCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Payment amount *',
+              border: OutlineInputBorder(),
+              prefixText: r'$ ',
+            ),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          ),
+          const SizedBox(height: 12),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('New subscription end date *'),
+            subtitle: Text(
+              _nextExpiry == null ? 'Choose date' : dateFmt.format(_nextExpiry!.toLocal()),
+            ),
+            trailing: const Icon(Icons.event_outlined),
+            onTap: _pickExpiry,
+          ),
+          const SizedBox(height: 20),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _kPrimary),
+            onPressed: _submitting ? null : _submit,
+            child: _submitting
+                ? const SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Save payment'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AdminClinicsManagePanel extends StatefulWidget {
+  const AdminClinicsManagePanel({super.key, this.onReloadReady});
+
+  final void Function(Future<void> Function() reload)? onReloadReady;
+
+  @override
+  State<AdminClinicsManagePanel> createState() => AdminClinicsManagePanelState();
+}
+
+class AdminClinicsManagePanelState extends State<AdminClinicsManagePanel> {
+  late Future<List<Map<String, dynamic>>> _future;
+  final _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.onReloadReady?.call(() async {
+        await reload();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<List<Map<String, dynamic>>> _load() {
+    final q = _searchController.text.trim();
+    return BackendApiClient.instance.getClinics(search: q.isEmpty ? null : q);
+  }
+
+  Future<void> reload() async {
+    setState(() {
+      _future = _load();
+    });
+    await _future;
   }
 
   Future<void> _confirmDelete(Map<String, dynamic> c) async {
@@ -282,12 +614,37 @@ class AdminClinicsManagePanelState extends State<AdminClinicsManagePanel> {
                     SliverPadding(
                       padding: padding,
                       sliver: SliverToBoxAdapter(
-                        child: Text(
-                          'Clinics',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF1A1A1A),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextField(
+                              controller: _searchController,
+                              textInputAction: TextInputAction.search,
+                              onSubmitted: (_) {
+                                FocusScope.of(context).unfocus();
+                                reload();
+                              },
+                              decoration: InputDecoration(
+                                hintText: 'Search clinics by name',
+                                prefixIcon: const Icon(Icons.search),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: Colors.white,
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                               ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Clinics',
+                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF1A1A1A),
+                                  ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -302,8 +659,11 @@ class AdminClinicsManagePanelState extends State<AdminClinicsManagePanel> {
                               child: DataTable(
                                 columns: const [
                                   DataColumn(label: Text('Name')),
+                                  DataColumn(label: Text('Owner')),
+                                  DataColumn(label: Text('Remaining')),
+                                  DataColumn(label: Text('Expires')),
                                   DataColumn(label: Text('Phone')),
-                                  DataColumn(label: Text('Email')),
+                                  DataColumn(label: Text('Clinic email')),
                                   DataColumn(label: Text('Doctors')),
                                   DataColumn(label: Text('Active')),
                                   DataColumn(label: Text('')),
@@ -311,22 +671,55 @@ class AdminClinicsManagePanelState extends State<AdminClinicsManagePanel> {
                                 rows: [
                                   for (final c in items)
                                     DataRow(
+                                      color: _isClinicBillingAlert(c)
+                                          ? WidgetStateProperty.all(Colors.red.shade50)
+                                          : null,
                                       cells: [
                                         DataCell(Text(c['name']?.toString() ?? '-')),
+                                        DataCell(
+                                          _OwnerTableCell(
+                                            name: _clinicOwnerFullName(c),
+                                            email: _clinicOwnerEmail(c),
+                                          ),
+                                        ),
+                                        DataCell(Text(_formatMoney(c['remainingAmount']))),
+                                        DataCell(
+                                          Text(
+                                            _parseJsonDate(c['subscriptionEndDate']) == null
+                                                ? '—'
+                                                : DateFormat.yMMMd().format(
+                                                    _parseJsonDate(c['subscriptionEndDate'])!.toLocal(),
+                                                  ),
+                                          ),
+                                        ),
                                         DataCell(Text(c['phone']?.toString() ?? '—')),
                                         DataCell(Text(c['email']?.toString() ?? '—')),
                                         DataCell(Text('${c['doctorCount'] ?? 0}')),
                                         DataCell(
                                           _ClinicPaymentSwitch(
                                             clinicId: (c['id'] as num).toInt(),
-                                            isPaid: _clinicIsPaid(c),
+                                            isPaid: _clinicSwitchIsPaid(c),
                                             onUpdated: reload,
                                           ),
                                         ),
                                         DataCell(
-                                          IconButton(
-                                            icon: const Icon(Icons.delete_outline),
-                                            onPressed: () => _confirmDelete(c),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                tooltip: 'Edit payment',
+                                                icon: const Icon(Icons.edit_calendar_outlined),
+                                                onPressed: () => showEditPaymentSheet(
+                                                  context,
+                                                  clinic: c,
+                                                  onSuccess: reload,
+                                                ),
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(Icons.delete_outline),
+                                                onPressed: () => _confirmDelete(c),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ],
@@ -375,6 +768,31 @@ class AdminClinicsManagePanelState extends State<AdminClinicsManagePanel> {
   }
 }
 
+class _OwnerTableCell extends StatelessWidget {
+  const _OwnerTableCell({required this.name, required this.email});
+
+  final String? name;
+  final String? email;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodySmall;
+    if (name == null && email == null) {
+      return Text('—', style: style);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (name != null && name!.isNotEmpty)
+          Text(name!, style: style?.copyWith(fontWeight: FontWeight.w600)),
+        if (email != null && email!.isNotEmpty)
+          Text(email!, style: style?.copyWith(color: Theme.of(context).colorScheme.primary)),
+      ],
+    );
+  }
+}
+
 class _ClinicAdminCard extends StatelessWidget {
   const _ClinicAdminCard({
     required this.data,
@@ -394,13 +812,22 @@ class _ClinicAdminCard extends StatelessWidget {
     final email = data['email']?.toString();
     final count = data['doctorCount'] ?? 0;
     final id = (data['id'] as num?)?.toInt();
-    final paid = _clinicIsPaid(data);
+    final paid = _clinicSwitchIsPaid(data);
+    final alert = _isClinicBillingAlert(data);
+    final remaining = _formatMoney(data['remainingAmount']);
+    final end = _parseJsonDate(data['subscriptionEndDate']);
+    final dateFmt = DateFormat.yMMMd();
+    final expiryLabel = end == null ? 'No expiry set' : 'Expires ${dateFmt.format(end.toLocal())}';
+
+    final borderColor = alert ? _kAlertRed : Colors.black.withValues(alpha: 0.06);
+    final bgTint = alert ? Colors.red.shade50 : Colors.white;
 
     return Card(
       elevation: 0,
+      color: bgTint,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
+        side: BorderSide(color: borderColor, width: alert ? 1.5 : 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -411,8 +838,8 @@ class _ClinicAdminCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 CircleAvatar(
-                  backgroundColor: _kPrimary.withValues(alpha: 0.12),
-                  foregroundColor: _kPrimary,
+                  backgroundColor: (alert ? _kAlertRed : _kPrimary).withValues(alpha: 0.12),
+                  foregroundColor: alert ? _kAlertRed : _kPrimary,
                   child: const Icon(Icons.local_hospital),
                 ),
                 const SizedBox(width: 12),
@@ -434,7 +861,32 @@ class _ClinicAdminCard extends StatelessWidget {
                       if (phone != null && phone.isNotEmpty)
                         Text('Phone: $phone', style: Theme.of(context).textTheme.bodySmall),
                       if (email != null && email.isNotEmpty)
-                        Text('Email: $email', style: Theme.of(context).textTheme.bodySmall),
+                        Text('Clinic email: $email', style: Theme.of(context).textTheme.bodySmall),
+                      if (_clinicOwnerFullName(data) != null || _clinicOwnerEmail(data) != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          'Owner',
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        const SizedBox(height: 2),
+                        if (_clinicOwnerFullName(data) != null)
+                          Text(
+                            _clinicOwnerFullName(data)!,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        if (_clinicOwnerEmail(data) != null)
+                          Text(
+                            _clinicOwnerEmail(data)!,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                          ),
+                      ],
                       const SizedBox(height: 8),
                       Text(
                         '$count doctors',
@@ -443,12 +895,40 @@ class _ClinicAdminCard extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                             ),
                       ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Remaining: $remaining',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: alert ? _kAlertRed : const Color(0xFF1A1A1A),
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        expiryLabel,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: alert ? _kAlertRed : Theme.of(context).colorScheme.onSurfaceVariant,
+                              fontWeight: alert ? FontWeight.w600 : null,
+                            ),
+                      ),
+                      if (alert) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          _paymentStatusIsFrozen(data) || _subscriptionUiIsFrozen(data)
+                              ? 'Subscription frozen or overdue'
+                              : 'Subscription end date has passed',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: _kAlertRed,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       Row(
                         children: [
                           Expanded(
                             child: Text(
-                              paid ? 'Account active (paid)' : 'Frozen — staff blocked until paid',
+                              paid ? 'Account active (paid)' : 'Staff blocked until paid / renewed',
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                     color: paid ? const Color(0xFF2E7D32) : const Color(0xFFB00020),
                                     fontWeight: FontWeight.w600,
@@ -466,10 +946,23 @@ class _ClinicAdminCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                IconButton(
-                  tooltip: 'Delete',
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline),
+                Column(
+                  children: [
+                    IconButton(
+                      tooltip: 'Edit payment',
+                      icon: const Icon(Icons.edit_calendar_outlined),
+                      onPressed: () => showEditPaymentSheet(
+                        context,
+                        clinic: data,
+                        onSuccess: onPaymentUpdated,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Delete',
+                      onPressed: onDelete,
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                  ],
                 ),
               ],
             ),

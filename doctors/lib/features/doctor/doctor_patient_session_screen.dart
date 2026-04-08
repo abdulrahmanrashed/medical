@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,6 +10,7 @@ import '../../core/layout/responsive.dart';
 import '../../core/models/backend_models.dart';
 import '../../core/network/backend_api_client.dart';
 import '../../core/network/session_manager.dart';
+import 'medication_history_tab.dart';
 
 /// Fallback suggestions when the patient has no prior medications on record.
 const _kCommonMedicationNames = <String>[
@@ -45,6 +48,35 @@ const _kCommonMedicationNames = <String>[
   'Iron supplement',
 ];
 
+InputDecoration _medicationFieldDecoration(
+  ThemeData theme,
+  String label, {
+  String? hint,
+}) {
+  final radius = BorderRadius.circular(12);
+  return InputDecoration(
+    labelText: label,
+    hintText: hint,
+    border: OutlineInputBorder(borderRadius: radius),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: radius,
+      borderSide: BorderSide(color: theme.colorScheme.outline),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: radius,
+      borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: radius,
+      borderSide: BorderSide(color: theme.colorScheme.error),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: radius,
+      borderSide: BorderSide(color: theme.colorScheme.error, width: 2),
+    ),
+  );
+}
+
 /// Digital file for one visit: notes timeline, e-prescription, attachments.
 ///
 /// Notes tab shows all [ApiMedicalRecordDetail] rows for this patient (newest first). New note → POST;
@@ -54,10 +86,14 @@ class DoctorPatientSessionScreen extends StatefulWidget {
     super.key,
     required this.appointment,
     required this.specialization,
+    this.readOnly = false,
   });
 
   final ApiAppointment appointment;
   final DoctorSpecialization specialization;
+
+  /// Archive / history review: no new notes, edits, meds, or uploads.
+  final bool readOnly;
 
   @override
   State<DoctorPatientSessionScreen> createState() => _DoctorPatientSessionScreenState();
@@ -72,6 +108,7 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
   ApiMedicalRecordDetail? _record;
   int? _resolvedClinicId;
   bool _loading = true;
+  bool _endingSession = false;
   String? _bootstrapError;
 
   void _onTabChanged() {
@@ -82,7 +119,7 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(_onTabChanged);
     _bootstrap();
   }
@@ -201,122 +238,24 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
       return;
     }
 
-    final symptoms = TextEditingController();
-    final diagnosis = TextEditingController();
-    final notes = TextEditingController();
-    try {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (ctx) {
-          var saving = false;
-          return StatefulBuilder(
-            builder: (_, setModal) {
-              final bottomInset = MediaQuery.viewInsetsOf(ctx).bottom;
-              return Padding(
-                padding: EdgeInsets.fromLTRB(20, 8, 20, bottomInset + 20),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'New clinical note',
-                        style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: symptoms,
-                        decoration: const InputDecoration(
-                          labelText: 'Symptoms',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 2,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: diagnosis,
-                        decoration: const InputDecoration(
-                          labelText: 'Diagnosis',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 3,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: notes,
-                        decoration: const InputDecoration(
-                          labelText: 'Clinical notes',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 6,
-                      ),
-                      const SizedBox(height: 20),
-                      FilledButton(
-                        onPressed: saving
-                            ? null
-                            : () async {
-                                setModal(() => saving = true);
-                                try {
-                                  final doctorId = await _resolveDoctorIdForApi();
-                                  if (doctorId == null) {
-                                    if (ctx.mounted) {
-                                      ScaffoldMessenger.of(ctx).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Could not resolve doctor id. Sign in again.'),
-                                        ),
-                                      );
-                                    }
-                                    return;
-                                  }
-                                  final created = await BackendApiClient.instance.createMedicalRecord(
-                                    patientId: widget.appointment.patientId,
-                                    clinicId: clinicId,
-                                    doctorId: doctorId,
-                                    symptoms: symptoms.text.trim().isEmpty ? null : symptoms.text.trim(),
-                                    diagnosis: diagnosis.text.trim().isEmpty ? null : diagnosis.text.trim(),
-                                    notes: notes.text.trim().isEmpty ? null : notes.text.trim(),
-                                  );
-                                  if (!mounted) return;
-                                  _applyRecord(created);
-                                  if (ctx.mounted) Navigator.pop(ctx);
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Visit record created. Visible under My Records.'),
-                                    ),
-                                  );
-                                } catch (e) {
-                                  if (ctx.mounted) {
-                                    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(e.toString())));
-                                  }
-                                } finally {
-                                  if (ctx.mounted) setModal(() => saving = false);
-                                }
-                              },
-                        child: saving
-                            ? const SizedBox(
-                                height: 22,
-                                width: 22,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text('Save visit note'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
+    final created = await showModalBottomSheet<ApiMedicalRecordDetail?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (ctx) => _NewClinicalNoteSheet(
+        clinicId: clinicId,
+        patientId: widget.appointment.patientId,
+        resolveDoctorId: _resolveDoctorIdForApi,
+      ),
+    );
+    if (created != null && mounted) {
+      _applyRecord(created);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Visit record created. Visible under My Records.'),
+        ),
       );
-    } finally {
-      symptoms.dispose();
-      diagnosis.dispose();
-      notes.dispose();
     }
   }
 
@@ -329,107 +268,18 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
       return;
     }
 
-    final symptoms = TextEditingController(text: record.symptoms ?? '');
-    final diagnosis = TextEditingController(text: record.diagnosis ?? '');
-    final notes = TextEditingController(text: record.notes ?? '');
-    try {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (ctx) {
-          var saving = false;
-          return StatefulBuilder(
-            builder: (_, setModal) {
-              final bottomInset = MediaQuery.viewInsetsOf(ctx).bottom;
-              return Padding(
-                padding: EdgeInsets.fromLTRB(20, 8, 20, bottomInset + 20),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Edit visit #${record.id}',
-                        style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: symptoms,
-                        decoration: const InputDecoration(
-                          labelText: 'Symptoms',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 2,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: diagnosis,
-                        decoration: const InputDecoration(
-                          labelText: 'Diagnosis',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 3,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: notes,
-                        decoration: const InputDecoration(
-                          labelText: 'Clinical notes',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 6,
-                      ),
-                      const SizedBox(height: 20),
-                      FilledButton(
-                        onPressed: saving
-                            ? null
-                            : () async {
-                                setModal(() => saving = true);
-                                try {
-                                  final updated = await BackendApiClient.instance.updateMedicalRecord(
-                                    id: record.id,
-                                    symptoms: symptoms.text.trim().isEmpty ? null : symptoms.text.trim(),
-                                    diagnosis: diagnosis.text.trim().isEmpty ? null : diagnosis.text.trim(),
-                                    notes: notes.text.trim().isEmpty ? null : notes.text.trim(),
-                                  );
-                                  if (!mounted) return;
-                                  _applyRecord(updated);
-                                  if (ctx.mounted) Navigator.pop(ctx);
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Note updated.')),
-                                  );
-                                } catch (e) {
-                                  if (ctx.mounted) {
-                                    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(e.toString())));
-                                  }
-                                } finally {
-                                  if (ctx.mounted) setModal(() => saving = false);
-                                }
-                              },
-                        child: saving
-                            ? const SizedBox(
-                                height: 22,
-                                width: 22,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text('Save changes'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
+    final updated = await showModalBottomSheet<ApiMedicalRecordDetail?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (ctx) => _EditClinicalNoteSheet(record: record),
+    );
+    if (updated != null && mounted) {
+      _applyRecord(updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Note updated.')),
       );
-    } finally {
-      symptoms.dispose();
-      diagnosis.dispose();
-      notes.dispose();
     }
   }
 
@@ -452,223 +302,28 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
     return sorted.where((n) => n.toLowerCase().contains(q)).take(24).toList();
   }
 
-  InputDecoration _medicationFieldDecoration(
-    ThemeData theme,
-    String label, {
-    String? hint,
-  }) {
-    final radius = BorderRadius.circular(12);
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      border: OutlineInputBorder(borderRadius: radius),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: radius,
-        borderSide: BorderSide(color: theme.colorScheme.outline),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: radius,
-        borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: radius,
-        borderSide: BorderSide(color: theme.colorScheme.error),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: radius,
-        borderSide: BorderSide(color: theme.colorScheme.error, width: 2),
-      ),
-    );
-  }
-
   Future<void> _addMedication() async {
     final prescId = _record?.primaryPrescriptionId;
     if (prescId == null) return;
 
-    final nameFocus = FocusNode();
-    final name = TextEditingController();
-    final dosage = TextEditingController();
-    final frequency = TextEditingController();
-    final duration = TextEditingController();
-
-    try {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        useSafeArea: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (sheetCtx) {
-          var saving = false;
-          return StatefulBuilder(
-            builder: (_, setModal) {
-              final theme = Theme.of(sheetCtx);
-              final bottomInset = MediaQuery.viewInsetsOf(sheetCtx).bottom;
-              final deco = _medicationFieldDecoration;
-
-              Future<void> submit() async {
-                if (name.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                    const SnackBar(content: Text('Medication name is required.')),
-                  );
-                  return;
-                }
-                setModal(() => saving = true);
-                try {
-                  final durationLine = duration.text.trim();
-                  final instructions = durationLine.isEmpty ? null : 'Duration: $durationLine';
-                  final updated = await BackendApiClient.instance.addMedication(
-                    prescriptionId: prescId,
-                    name: name.text.trim(),
-                    dosage: dosage.text.trim(),
-                    schedule: frequency.text.trim().isEmpty ? 'As directed' : frequency.text.trim(),
-                    instructions: instructions,
-                  );
-                  if (!mounted) return;
-                  _applyRecord(updated);
-                  if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Prescription updated. Patient sees it under My Records.')),
-                  );
-                } catch (e) {
-                  if (sheetCtx.mounted) {
-                    ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(e.toString())));
-                  }
-                } finally {
-                  if (sheetCtx.mounted) setModal(() => saving = false);
-                }
-              }
-
-              return Padding(
-                padding: EdgeInsets.fromLTRB(20, 8, 20, bottomInset + 20),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Add medication',
-                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Visible to the patient under My Records. Duration is stored in instructions.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      RawAutocomplete<String>(
-                        textEditingController: name,
-                        focusNode: nameFocus,
-                        optionsBuilder: (value) {
-                          if (value.text == '') {
-                            return _medicationAutocompleteOptions('');
-                          }
-                          return _medicationAutocompleteOptions(value.text);
-                        },
-                        displayStringForOption: (option) => option,
-                        optionsViewBuilder: (context, onSelected, options) {
-                          if (options.isEmpty) return const SizedBox.shrink();
-                          return Align(
-                            alignment: Alignment.topLeft,
-                            child: Material(
-                              elevation: 8,
-                              shadowColor: theme.colorScheme.shadow,
-                              borderRadius: BorderRadius.circular(12),
-                              color: theme.colorScheme.surfaceContainerHigh,
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(maxHeight: 220, minWidth: 240),
-                                child: ListView.builder(
-                                  padding: EdgeInsets.zero,
-                                  shrinkWrap: true,
-                                  itemCount: options.length,
-                                  itemBuilder: (context, index) {
-                                    final option = options.elementAt(index);
-                                    return ListTile(
-                                      dense: true,
-                                      title: Text(option),
-                                      onTap: () => onSelected(option),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                        fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted) {
-                          return TextField(
-                            controller: textController,
-                            focusNode: focusNode,
-                            decoration: deco(theme, 'Medication name', hint: 'Search or type…'),
-                            textCapitalization: TextCapitalization.words,
-                            onSubmitted: (_) {
-                              onFieldSubmitted();
-                              submit();
-                            },
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: dosage,
-                        decoration: deco(theme, 'Dosage', hint: 'e.g. 500 mg'),
-                        textCapitalization: TextCapitalization.none,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: frequency,
-                        decoration: deco(theme, 'Frequency', hint: 'e.g. 3 times a day'),
-                        textCapitalization: TextCapitalization.sentences,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: duration,
-                        decoration: deco(theme, 'Duration', hint: 'e.g. 7 days'),
-                        textCapitalization: TextCapitalization.sentences,
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextButton(
-                              onPressed: saving ? null : () => Navigator.pop(sheetCtx),
-                              child: const Text('Cancel'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 2,
-                            child: FilledButton(
-                              onPressed: saving ? null : submit,
-                              child: saving
-                                  ? const SizedBox(
-                                      height: 22,
-                                      width: 22,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    )
-                                  : const Text('Add'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
+    final updated = await showModalBottomSheet<ApiMedicalRecordDetail?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _AddMedicationFormSheet(
+        prescriptionId: prescId,
+        medicationOptions: _medicationAutocompleteOptions,
+      ),
+    );
+    if (updated != null && mounted) {
+      _applyRecord(updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Prescription updated. Patient sees it under My Records.')),
       );
-    } finally {
-      nameFocus.dispose();
-      name.dispose();
-      dosage.dispose();
-      frequency.dispose();
-      duration.dispose();
     }
   }
 
@@ -753,12 +408,104 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
     return out;
   }
 
+  Future<void> _copyMedToCurrentVisit(ApiMedication template) async {
+    if (widget.readOnly) return;
+    final prescId = _record?.primaryPrescriptionId;
+    if (prescId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Add a visit note on the Notes tab first so this session has a prescription to add medications to.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    try {
+      final updated = await BackendApiClient.instance.addMedication(
+        prescriptionId: prescId,
+        name: template.name,
+        dosage: template.dosage,
+        schedule: template.schedule,
+        instructions: template.instructions,
+      );
+      if (!mounted) return;
+      _applyRecord(updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Medication copied to this visit.')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
+
+  Widget _medicationHistoryTab(BuildContext context) {
+    return MedicationHistoryTab(
+      timeline: _timeline,
+      readOnly: widget.readOnly,
+      onCopyToCurrentVisit: widget.readOnly ? null : _copyMedToCurrentVisit,
+    );
+  }
+
+  Future<void> _onEndSession() async {
+    final a = widget.appointment;
+    if (a.id <= 0 || widget.readOnly || a.status != ApiAppointmentStatus.inProgress) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('End session?'),
+        content: const Text(
+          'Are you sure you want to end this session? This will move the patient to the archive.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('End session'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _endingSession = true);
+    try {
+      await BackendApiClient.instance.patchDoctorAppointmentStatus(
+        appointmentId: a.id,
+        status: ApiAppointmentStatus.completed,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not complete visit: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _endingSession = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final a = widget.appointment;
-    final showNotesFab = !_loading &&
+    final readOnly = widget.readOnly;
+    final showNotesFab = !readOnly &&
+        !_loading &&
         _bootstrapError == null &&
         _tabController.index == 0;
+
+    final showEndSession =
+        !readOnly && a.id > 0 && a.status == ApiAppointmentStatus.inProgress;
 
     return Scaffold(
       floatingActionButton: showNotesFab
@@ -766,6 +513,35 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
               onPressed: _openNewNoteSheet,
               icon: const Icon(Icons.note_add_outlined),
               label: const Text('New note'),
+            )
+          : null,
+      bottomNavigationBar: showEndSession
+          ? SafeArea(
+              child: Material(
+                elevation: 10,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                  child: FilledButton.icon(
+                    onPressed: _endingSession ? null : _onEndSession,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF004D40),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 52),
+                    ),
+                    icon: _endingSession
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.call_end_outlined),
+                    label: Text(_endingSession ? 'Ending…' : 'End session'),
+                  ),
+                ),
+              ),
             )
           : null,
       appBar: AppBar(
@@ -802,12 +578,46 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
                     ),
                   ),
                 )
-              : TabBarView(
-                  controller: _tabController,
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _notesTab(context),
-                    _rxTab(context),
-                    _filesTab(context),
+                    if (readOnly)
+                      Material(
+                        color: Theme.of(context).colorScheme.secondaryContainer,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.visibility_outlined,
+                                size: 20,
+                                color: Theme.of(context).colorScheme.onSecondaryContainer,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Viewing patient history (read-only).',
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSecondaryContainer,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _notesTab(context),
+                          _rxTab(context),
+                          _medicationHistoryTab(context),
+                          _filesTab(context),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
     );
@@ -869,7 +679,7 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                       ),
                     ),
-                  if (_canEditRecord(r))
+                  if (!widget.readOnly && _canEditRecord(r))
                     IconButton(
                       tooltip: 'Edit',
                       icon: const Icon(Icons.edit_outlined),
@@ -945,7 +755,9 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
         ),
         const SizedBox(height: 4),
         Text(
-          'Newest first. E-Prescription and Files use the latest visit—tap New note to add another.',
+          widget.readOnly
+              ? 'Newest first. Review past visits below.'
+              : 'Newest first. E-Prescription and Files use the latest visit—tap New note to add another.',
           style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -963,7 +775,9 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
                   Text('No visit notes yet', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
                   Text(
-                    'Tap the New note button to add symptoms, diagnosis, and clinical notes.',
+                    widget.readOnly
+                        ? 'No clinical notes on file for this patient.'
+                        : 'Tap the New note button to add symptoms, diagnosis, and clinical notes.',
                     style: theme.textTheme.bodyMedium,
                   ),
                 ],
@@ -980,24 +794,27 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
     final meds = _allMedications;
     return Column(
       children: [
-        Padding(
-          padding: Responsive.screenPadding(context).copyWith(top: 12, bottom: 8),
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton.icon(
-              onPressed: _record == null ? null : _addMedication,
-              icon: const Icon(Icons.add),
-              label: const Text('Add medication'),
+        if (!widget.readOnly)
+          Padding(
+            padding: Responsive.screenPadding(context).copyWith(top: 12, bottom: 8),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: _record == null ? null : _addMedication,
+                icon: const Icon(Icons.add),
+                label: const Text('Add medication'),
+              ),
             ),
           ),
-        ),
         Expanded(
           child: _record == null
               ? Center(
                   child: Padding(
                     padding: Responsive.screenPadding(context),
                     child: Text(
-                      'Add a visit note from the Notes tab (New note) before adding medications.',
+                      widget.readOnly
+                          ? 'No prescription data without a visit record on file.'
+                          : 'Add a visit note from the Notes tab (New note) before adding medications.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
@@ -1024,10 +841,12 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
                               '${m.instructions != null && m.instructions!.isNotEmpty ? '\n${m.instructions}' : ''}',
                             ),
                             isThreeLine: m.instructions != null && m.instructions!.isNotEmpty,
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed: () => _removeMedication(m),
-                            ),
+                            trailing: widget.readOnly
+                                ? null
+                                : IconButton(
+                                    icon: const Icon(Icons.delete_outline),
+                                    onPressed: () => _removeMedication(m),
+                                  ),
                           ),
                         );
                       },
@@ -1053,24 +872,27 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
             ),
           ),
         ),
-        Padding(
-          padding: Responsive.screenPadding(context).copyWith(top: 0, bottom: 8),
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton.icon(
-              onPressed: _record == null ? null : _pickAndUpload,
-              icon: const Icon(Icons.upload_file),
-              label: const Text('Upload file'),
+        if (!widget.readOnly)
+          Padding(
+            padding: Responsive.screenPadding(context).copyWith(top: 0, bottom: 8),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: _record == null ? null : _pickAndUpload,
+                icon: const Icon(Icons.upload_file),
+                label: const Text('Upload file'),
+              ),
             ),
           ),
-        ),
         Expanded(
           child: _record == null
               ? Center(
                   child: Padding(
                     padding: Responsive.screenPadding(context),
                     child: Text(
-                      'Add a visit note from the Notes tab (New note) before uploading files.',
+                      widget.readOnly
+                          ? 'No visit record on file.'
+                          : 'Add a visit note from the Notes tab (New note) before uploading files.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
@@ -1104,6 +926,441 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
                     ),
         ),
       ],
+    );
+  }
+}
+
+class _NewClinicalNoteSheet extends StatefulWidget {
+  const _NewClinicalNoteSheet({
+    required this.clinicId,
+    required this.patientId,
+    required this.resolveDoctorId,
+  });
+
+  final int clinicId;
+  final String patientId;
+  final Future<int?> Function() resolveDoctorId;
+
+  @override
+  State<_NewClinicalNoteSheet> createState() => _NewClinicalNoteSheetState();
+}
+
+class _NewClinicalNoteSheetState extends State<_NewClinicalNoteSheet> {
+  late final TextEditingController _symptoms;
+  late final TextEditingController _diagnosis;
+  late final TextEditingController _notes;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _symptoms = TextEditingController();
+    _diagnosis = TextEditingController();
+    _notes = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _symptoms.dispose();
+    _diagnosis.dispose();
+    _notes.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final doctorId = await widget.resolveDoctorId();
+      if (doctorId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not resolve doctor id. Sign in again.')),
+          );
+        }
+        return;
+      }
+      final created = await BackendApiClient.instance.createMedicalRecord(
+        patientId: widget.patientId,
+        clinicId: widget.clinicId,
+        doctorId: doctorId,
+        symptoms: _symptoms.text.trim().isEmpty ? null : _symptoms.text.trim(),
+        diagnosis: _diagnosis.text.trim().isEmpty ? null : _diagnosis.text.trim(),
+        notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.pop(context, created);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 8, 20, bottomInset + 20),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'New clinical note',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _symptoms,
+              decoration: const InputDecoration(
+                labelText: 'Symptoms',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _diagnosis,
+              decoration: const InputDecoration(
+                labelText: 'Diagnosis',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _notes,
+              decoration: const InputDecoration(
+                labelText: 'Clinical notes',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 6,
+            ),
+            const SizedBox(height: 20),
+            FilledButton(
+              onPressed: _saving ? null : _save,
+              child: _saving
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Save visit note'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EditClinicalNoteSheet extends StatefulWidget {
+  const _EditClinicalNoteSheet({required this.record});
+
+  final ApiMedicalRecordDetail record;
+
+  @override
+  State<_EditClinicalNoteSheet> createState() => _EditClinicalNoteSheetState();
+}
+
+class _EditClinicalNoteSheetState extends State<_EditClinicalNoteSheet> {
+  late final TextEditingController _symptoms;
+  late final TextEditingController _diagnosis;
+  late final TextEditingController _notes;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final r = widget.record;
+    _symptoms = TextEditingController(text: r.symptoms ?? '');
+    _diagnosis = TextEditingController(text: r.diagnosis ?? '');
+    _notes = TextEditingController(text: r.notes ?? '');
+  }
+
+  @override
+  void dispose() {
+    _symptoms.dispose();
+    _diagnosis.dispose();
+    _notes.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final updated = await BackendApiClient.instance.updateMedicalRecord(
+        id: widget.record.id,
+        symptoms: _symptoms.text.trim().isEmpty ? null : _symptoms.text.trim(),
+        diagnosis: _diagnosis.text.trim().isEmpty ? null : _diagnosis.text.trim(),
+        notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.pop(context, updated);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 8, 20, bottomInset + 20),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Edit visit #${widget.record.id}',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _symptoms,
+              decoration: const InputDecoration(
+                labelText: 'Symptoms',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _diagnosis,
+              decoration: const InputDecoration(
+                labelText: 'Diagnosis',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _notes,
+              decoration: const InputDecoration(
+                labelText: 'Clinical notes',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 6,
+            ),
+            const SizedBox(height: 20),
+            FilledButton(
+              onPressed: _saving ? null : _save,
+              child: _saving
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Save changes'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AddMedicationFormSheet extends StatefulWidget {
+  const _AddMedicationFormSheet({
+    required this.prescriptionId,
+    required this.medicationOptions,
+  });
+
+  final int prescriptionId;
+  final List<String> Function(String query) medicationOptions;
+
+  @override
+  State<_AddMedicationFormSheet> createState() => _AddMedicationFormSheetState();
+}
+
+class _AddMedicationFormSheetState extends State<_AddMedicationFormSheet> {
+  late final FocusNode _nameFocus;
+  late final TextEditingController _name;
+  late final TextEditingController _dosage;
+  late final TextEditingController _frequency;
+  late final TextEditingController _duration;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameFocus = FocusNode();
+    _name = TextEditingController();
+    _dosage = TextEditingController();
+    _frequency = TextEditingController();
+    _duration = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _nameFocus.dispose();
+    _name.dispose();
+    _dosage.dispose();
+    _frequency.dispose();
+    _duration.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_name.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Medication name is required.')),
+      );
+      return;
+    }
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final durationLine = _duration.text.trim();
+      final instructions = durationLine.isEmpty ? null : 'Duration: $durationLine';
+      final updated = await BackendApiClient.instance.addMedication(
+        prescriptionId: widget.prescriptionId,
+        name: _name.text.trim(),
+        dosage: _dosage.text.trim(),
+        schedule: _frequency.text.trim().isEmpty ? 'As directed' : _frequency.text.trim(),
+        instructions: instructions,
+      );
+      if (!mounted) return;
+      Navigator.pop(context, updated);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 8, 20, bottomInset + 20),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Add medication',
+              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Visible to the patient under My Records. Duration is stored in instructions.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 20),
+            RawAutocomplete<String>(
+              textEditingController: _name,
+              focusNode: _nameFocus,
+              optionsBuilder: (value) {
+                if (value.text == '') {
+                  return widget.medicationOptions('');
+                }
+                return widget.medicationOptions(value.text);
+              },
+              displayStringForOption: (option) => option,
+              optionsViewBuilder: (context, onSelected, options) {
+                if (options.isEmpty) return const SizedBox.shrink();
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    elevation: 8,
+                    shadowColor: theme.colorScheme.shadow,
+                    borderRadius: BorderRadius.circular(12),
+                    color: theme.colorScheme.surfaceContainerHigh,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 220, minWidth: 240),
+                      child: ListView.builder(
+                        padding: EdgeInsets.zero,
+                        shrinkWrap: true,
+                        itemCount: options.length,
+                        itemBuilder: (context, index) {
+                          final option = options.elementAt(index);
+                          return ListTile(
+                            dense: true,
+                            title: Text(option),
+                            onTap: () => onSelected(option),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
+              fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted) {
+                return TextField(
+                  controller: textController,
+                  focusNode: focusNode,
+                  decoration: _medicationFieldDecoration(theme, 'Medication name', hint: 'Search or type…'),
+                  textCapitalization: TextCapitalization.words,
+                  onSubmitted: (_) {
+                    onFieldSubmitted();
+                    unawaited(_submit());
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _dosage,
+              decoration: _medicationFieldDecoration(theme, 'Dosage', hint: 'e.g. 500 mg'),
+              textCapitalization: TextCapitalization.none,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _frequency,
+              decoration: _medicationFieldDecoration(theme, 'Frequency', hint: 'e.g. 3 times a day'),
+              textCapitalization: TextCapitalization.sentences,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _duration,
+              decoration: _medicationFieldDecoration(theme, 'Duration', hint: 'e.g. 7 days'),
+              textCapitalization: TextCapitalization.sentences,
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: _saving ? null : () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton(
+                    onPressed: _saving ? null : _submit,
+                    child: _saving
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Add'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

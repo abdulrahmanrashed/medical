@@ -42,3 +42,9 @@ public class UpdateAppointmentDto
     public AppointmentStatus Status { get; set; }
     public string? Notes { get; set; }
 }
+
+/// <summary>Doctor-only status transitions (start session / end session).</summary>
+public class DoctorAppointmentStatusDto
+{
+    public AppointmentStatus Status { get; set; }
+}

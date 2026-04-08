@@ -39,9 +39,14 @@ public class DoctorService : IDoctorService
                 throw new ForbiddenException("You can only list doctors for your own clinic.");
         }
 
-        var list = await _doctors.Query()
+        var query = _doctors.Query()
             .Include(d => d.Clinic)
-            .Where(d => d.ClinicId == clinicId)
+            .Where(d => d.ClinicId == clinicId);
+
+        if (_currentUser.IsInRole(AppRoles.Patient))
+            query = query.Where(d => d.IsActive);
+
+        var list = await query
             .OrderBy(d => d.Specialization)
             .ToListAsync(cancellationToken);
         var result = new List<DoctorDto>();
@@ -67,6 +72,9 @@ public class DoctorService : IDoctorService
             if (assigned != doctor.ClinicId)
                 throw new ForbiddenException("You cannot view doctors outside your clinic.");
         }
+
+        if (_currentUser.IsInRole(AppRoles.Patient) && !doctor.IsActive)
+            throw new NotFoundException($"Doctor {id} was not found.");
 
         return await MapDoctorAsync(doctor, cancellationToken);
     }
@@ -135,7 +143,42 @@ public class DoctorService : IDoctorService
             ClinicId = doctor.ClinicId,
             ClinicName = doctor.Clinic.Name,
             Specialization = doctor.Specialization,
-            LicenseNumber = doctor.LicenseNumber
+            LicenseNumber = doctor.LicenseNumber,
+            PhoneNumber = doctor.PhoneNumber,
+            YearsOfExperience = doctor.YearsOfExperience,
+            Gender = doctor.Gender,
+            IsActive = doctor.IsActive
         };
+    }
+
+    public async Task<DoctorDto> SetActiveAsync(int id, bool isActive, CancellationToken cancellationToken = default)
+    {
+        var doctor = await _doctors.Query()
+            .Include(d => d.Clinic)
+            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+        if (doctor is null)
+            throw new NotFoundException($"Doctor {id} was not found.");
+
+        if (_currentUser.IsInRole(AppRoles.Admin))
+        {
+            // allowed
+        }
+        else if (_currentUser.IsInRole(AppRoles.ClinicAdmin))
+        {
+            var assigned = _currentUser.GetAssignedClinicId()
+                ?? throw new ForbiddenException("Clinic administrator is not assigned to a clinic.");
+            if (assigned != doctor.ClinicId)
+                throw new ForbiddenException("You cannot change doctors outside your clinic.");
+        }
+        else
+        {
+            throw new ForbiddenException("Only system admin or clinic administrators can freeze or unfreeze doctors.");
+        }
+
+        doctor.IsActive = isActive;
+        doctor.UpdatedAtUtc = DateTime.UtcNow;
+        _doctors.Update(doctor);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return await MapDoctorAsync(doctor, cancellationToken);
     }
 }

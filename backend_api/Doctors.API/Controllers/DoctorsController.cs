@@ -42,6 +42,13 @@ public class DoctorsController : ControllerBase
         return Ok(doctor);
     }
 
+    [HttpPatch("{id:int}/active")]
+    [Authorize(Roles = $"{AppRoles.Admin},{AppRoles.ClinicAdmin}")]
+    public async Task<ActionResult<DoctorDto>> SetActive(int id, [FromBody] SetDoctorActiveDto dto, CancellationToken cancellationToken)
+    {
+        return Ok(await _doctors.SetActiveAsync(id, dto.IsActive, cancellationToken));
+    }
+
     [HttpDelete("{id:int}")]
     [Authorize(Roles = $"{AppRoles.Admin},{AppRoles.ClinicAdmin}")]
     public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)

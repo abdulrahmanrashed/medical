@@ -33,6 +33,9 @@ public class RegisterDoctorRequestDto
     public int ClinicId { get; set; }
     public string Specialization { get; set; } = string.Empty;
     public string? LicenseNumber { get; set; }
+    public string? PhoneNumber { get; set; }
+    public int YearsOfExperience { get; set; }
+    public string? Gender { get; set; }
 }
 
 public class RegisterReceptionRequestDto

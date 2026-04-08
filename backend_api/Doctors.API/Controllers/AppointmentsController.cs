@@ -47,6 +47,17 @@ public class AppointmentsController : ControllerBase
         return Ok(await _appointments.UpdateAsync(id, dto, cancellationToken));
     }
 
+    /// <summary>Doctor: start session (InProgress) or end session (Completed).</summary>
+    [HttpPatch("{id:int}/doctor-status")]
+    [Authorize(Roles = AppRoles.Doctor)]
+    public async Task<ActionResult<AppointmentDto>> UpdateStatusByDoctor(
+        int id,
+        [FromBody] DoctorAppointmentStatusDto dto,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _appointments.UpdateStatusByDoctorAsync(id, dto.Status, cancellationToken));
+    }
+
     [HttpDelete("{id:int}")]
     [Authorize(Roles = $"{AppRoles.Admin},{AppRoles.Reception}")]
     public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)

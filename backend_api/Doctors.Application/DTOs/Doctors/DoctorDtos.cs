@@ -11,4 +11,13 @@ public class DoctorDto
     public string ClinicName { get; set; } = string.Empty;
     public string Specialization { get; set; } = string.Empty;
     public string? LicenseNumber { get; set; }
+    public string? PhoneNumber { get; set; }
+    public int YearsOfExperience { get; set; }
+    public string? Gender { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+public class SetDoctorActiveDto
+{
+    public bool IsActive { get; set; }
 }

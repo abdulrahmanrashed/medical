@@ -245,6 +245,7 @@ class _AppointmentsPanel extends StatelessWidget {
   static IconData _statusIcon(ApiAppointmentStatus s) => switch (s) {
         ApiAppointmentStatus.pending => Icons.schedule,
         ApiAppointmentStatus.approved => Icons.event_available,
+        ApiAppointmentStatus.inProgress => Icons.medication_outlined,
         ApiAppointmentStatus.rescheduled => Icons.update,
         ApiAppointmentStatus.cancelled => Icons.cancel_outlined,
         ApiAppointmentStatus.completed => Icons.check_circle_outline,
@@ -253,6 +254,7 @@ class _AppointmentsPanel extends StatelessWidget {
   static String _statusLabel(ApiAppointmentStatus s) => switch (s) {
         ApiAppointmentStatus.pending => 'Pending',
         ApiAppointmentStatus.approved => 'Approved',
+        ApiAppointmentStatus.inProgress => 'In progress',
         ApiAppointmentStatus.rescheduled => 'Rescheduled',
         ApiAppointmentStatus.cancelled => 'Cancelled',
         ApiAppointmentStatus.completed => 'Completed',
@@ -361,7 +363,9 @@ class _PendingRequestsPanel extends StatelessWidget {
                             const SizedBox(width: 10),
                             Expanded(
                               child: OutlinedButton(
-                                onPressed: busy ? null : () => _onRejectOrReschedule(context, a),
+                                onPressed: busy
+                                    ? null
+                                    : () => _showRejectRescheduleBottomSheet(context, a),
                                 child: const Text('Reject / Reschedule'),
                               ),
                             ),
@@ -475,46 +479,52 @@ class _PendingRequestsPanel extends StatelessWidget {
     }
   }
 
-  void _onRejectOrReschedule(BuildContext context, ApiAppointment a) {
-    showModalBottomSheet<void>(
-      context: context,
+  Future<void> _showRejectRescheduleBottomSheet(
+    BuildContext anchorContext,
+    ApiAppointment a,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: anchorContext,
       showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.cancel_outlined),
-              title: const Text('Cancel request'),
-              subtitle: const Text('Mark as cancelled'),
-              onTap: () async {
-                Navigator.pop(ctx);
-                try {
-                  await dash.cancelPendingAppointment(a);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Request cancelled.')),
-                  );
-                } catch (e) {
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(e.toString())),
-                  );
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.event_repeat),
-              title: const Text('Reschedule…'),
-              subtitle: const Text('Pick a new time (status: Rescheduled)'),
-              onTap: () async {
-                Navigator.pop(ctx);
-                await _pickReschedule(context, a);
-              },
-            ),
-          ],
-        ),
-      ),
+      useSafeArea: true,
+      builder: (sheetCtx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.cancel_outlined),
+                title: const Text('Cancel request'),
+                subtitle: const Text('Mark as cancelled'),
+                onTap: () async {
+                  Navigator.pop(sheetCtx);
+                  try {
+                    await dash.cancelPendingAppointment(a);
+                    if (!anchorContext.mounted) return;
+                    ScaffoldMessenger.of(anchorContext).showSnackBar(
+                      const SnackBar(content: Text('Request cancelled.')),
+                    );
+                  } catch (e) {
+                    if (!anchorContext.mounted) return;
+                    ScaffoldMessenger.of(anchorContext).showSnackBar(
+                      SnackBar(content: Text(e.toString())),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.event_repeat),
+                title: const Text('Reschedule…'),
+                subtitle: const Text('Pick a new time (status: Rescheduled)'),
+                onTap: () async {
+                  Navigator.pop(sheetCtx);
+                  await _pickReschedule(anchorContext, a);
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

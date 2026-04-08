@@ -38,6 +38,9 @@ public class RegisterDoctorRequestValidator : AbstractValidator<RegisterDoctorRe
         RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
         RuleFor(x => x.ClinicId).GreaterThan(0);
         RuleFor(x => x.Specialization).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.PhoneNumber).MaximumLength(30).When(x => !string.IsNullOrWhiteSpace(x.PhoneNumber));
+        RuleFor(x => x.YearsOfExperience).InclusiveBetween(0, 80);
+        RuleFor(x => x.Gender).MaximumLength(50).When(x => !string.IsNullOrWhiteSpace(x.Gender));
     }
 }
 

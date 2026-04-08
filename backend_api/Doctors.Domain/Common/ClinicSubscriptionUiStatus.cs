@@ -9,5 +9,8 @@ public enum ClinicSubscriptionUiStatus
     Active = 0,
 
     /// <summary>Unpaid and more than 30 days since the last payment reference date.</summary>
-    UnpaidOverdue = 1
+    UnpaidOverdue = 1,
+
+    /// <summary>Subscription period ended with an outstanding balance (staff access suspended).</summary>
+    Frozen = 2
 }

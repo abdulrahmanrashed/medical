@@ -39,6 +39,14 @@ class BackendApiClient {
         final msg = data is Map
             ? data['error']?.toString() ?? ''
             : data?.toString() ?? '';
+        final lower = msg.toLowerCase();
+        if (lower.contains('frozen')) {
+          throw AccountFrozenException(
+            msg.isNotEmpty
+                ? msg
+                : 'Your account is frozen. Please contact your clinic administrator.',
+          );
+        }
         if (msg.contains('Account Suspended') || msg.contains('Suspended')) {
           throw AccountSuspendedException(
             msg.isNotEmpty
@@ -107,8 +115,13 @@ class BackendApiClient {
     return res.data ?? <String, dynamic>{};
   }
 
-  Future<List<Map<String, dynamic>>> getClinics() async {
-    final res = await _dio.get<List<dynamic>>('/Clinics');
+  Future<List<Map<String, dynamic>>> getClinics({String? search}) async {
+    final res = await _dio.get<List<dynamic>>(
+      '/Clinics',
+      queryParameters: (search != null && search.trim().isNotEmpty)
+          ? <String, dynamic>{'search': search.trim()}
+          : null,
+    );
     return _listMap(res.data);
   }
 
@@ -121,6 +134,9 @@ class BackendApiClient {
     required String clinicAdminPassword,
     required String clinicAdminFirstName,
     required String clinicAdminLastName,
+    double totalAmount = 0,
+    double paidAmount = 0,
+    DateTime? subscriptionEndDate,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       '/Clinics',
@@ -133,9 +149,37 @@ class BackendApiClient {
         'clinicAdminPassword': clinicAdminPassword,
         'clinicAdminFirstName': clinicAdminFirstName,
         'clinicAdminLastName': clinicAdminLastName,
+        'totalAmount': totalAmount,
+        'paidAmount': paidAmount,
+        if (subscriptionEndDate != null)
+          'subscriptionEndDate': subscriptionEndDate.toUtc().toIso8601String(),
       },
     );
     return res.data ?? <String, dynamic>{};
+  }
+
+  /// Admin: record a subscription payment and extend billing period.
+  Future<Map<String, dynamic>> recordClinicPayment({
+    required int clinicId,
+    required double amountPaid,
+    DateTime? paymentDate,
+    required DateTime nextExpiryDate,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/Clinics/$clinicId/payment',
+      data: <String, dynamic>{
+        'amountPaid': amountPaid,
+        if (paymentDate != null) 'paymentDate': paymentDate.toUtc().toIso8601String(),
+        'nextExpiryDate': nextExpiryDate.toUtc().toIso8601String(),
+      },
+    );
+    return res.data ?? <String, dynamic>{};
+  }
+
+  /// Admin: all clinic invoices (billing history).
+  Future<List<Map<String, dynamic>>> getAllBillingInvoices() async {
+    final res = await _dio.get<List<dynamic>>('/Clinics/invoices/all');
+    return _listMap(res.data);
   }
 
   Future<void> setClinicPaymentStatus(int id, String paymentStatus) async {
@@ -182,6 +226,9 @@ class BackendApiClient {
     required String lastName,
     required String specialization,
     String? licenseNumber,
+    String? phoneNumber,
+    int yearsOfExperience = 0,
+    String? gender,
   }) async {
     await _dio.post<void>(
       '/Auth/register/doctor',
@@ -193,8 +240,19 @@ class BackendApiClient {
         'lastName': lastName,
         'specialization': specialization,
         'licenseNumber': licenseNumber,
+        'phoneNumber': phoneNumber,
+        'yearsOfExperience': yearsOfExperience,
+        'gender': gender,
       },
     );
+  }
+
+  Future<Map<String, dynamic>> setDoctorActive(int id, {required bool isActive}) async {
+    final res = await _dio.patch<Map<String, dynamic>>(
+      '/Doctors/$id/active',
+      data: <String, dynamic>{'isActive': isActive},
+    );
+    return res.data ?? <String, dynamic>{};
   }
 
   Future<void> deleteDoctor(int id) async {
@@ -204,6 +262,44 @@ class BackendApiClient {
   Future<List<Map<String, dynamic>>> getDoctorsByClinic(int clinicId) async {
     final res = await _dio.get<List<dynamic>>('/Doctors/clinic/$clinicId');
     return _listMap(res.data);
+  }
+
+  /// Clinic admin: doctor shift / off-day schedules.
+  Future<List<Map<String, dynamic>>> getWorkSchedules(
+    int clinicId, {
+    int? doctorId,
+    String? from,
+    String? to,
+  }) async {
+    final res = await _dio.get<List<dynamic>>(
+      '/Clinics/$clinicId/work-schedules',
+      queryParameters: <String, dynamic>{
+        if (doctorId != null) 'doctorId': doctorId,
+        if (from != null && from.isNotEmpty) 'from': from,
+        if (to != null && to.isNotEmpty) 'to': to,
+      },
+    );
+    return _listMap(res.data);
+  }
+
+  Future<List<Map<String, dynamic>>> bulkWorkSchedules(int clinicId, Map<String, dynamic> body) async {
+    final res = await _dio.post<List<dynamic>>(
+      '/Clinics/$clinicId/work-schedules/bulk',
+      data: body,
+    );
+    return _listMap(res.data);
+  }
+
+  Future<Map<String, dynamic>> updateWorkSchedule(int id, Map<String, dynamic> body) async {
+    final res = await _dio.put<Map<String, dynamic>>(
+      '/DoctorWorkSchedules/$id',
+      data: body,
+    );
+    return res.data ?? <String, dynamic>{};
+  }
+
+  Future<void> deleteWorkSchedule(int id) async {
+    await _dio.delete<void>('/DoctorWorkSchedules/$id');
   }
 
   Future<Map<String, dynamic>> getDoctorMe() async {
@@ -295,6 +391,24 @@ class BackendApiClient {
     final res = await _dio.put<Map<String, dynamic>>(
       '/Appointments/$id',
       data: body,
+    );
+    return ApiAppointment.fromJson(res.data ?? <String, dynamic>{});
+  }
+
+  /// Doctor JWT: start session (`InProgress`) or end session (`Completed`). Backend validates transitions.
+  Future<ApiAppointment> patchDoctorAppointmentStatus({
+    required int appointmentId,
+    required ApiAppointmentStatus status,
+  }) async {
+    ApiService.instance.syncAuthorizationHeaderFromSession();
+    final statusStr = switch (status) {
+      ApiAppointmentStatus.inProgress => 'InProgress',
+      ApiAppointmentStatus.completed => 'Completed',
+      _ => throw ArgumentError('Doctor status patch only supports InProgress or Completed'),
+    };
+    final res = await _dio.patch<Map<String, dynamic>>(
+      '/Appointments/$appointmentId/doctor-status',
+      data: <String, dynamic>{'status': statusStr},
     );
     return ApiAppointment.fromJson(res.data ?? <String, dynamic>{});
   }

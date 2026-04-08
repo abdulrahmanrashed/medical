@@ -27,6 +27,8 @@ public class SubscriptionOverdueBackgroundService : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
+                var freeze = scope.ServiceProvider.GetRequiredService<IClinicSubscriptionFreezeService>();
+                await freeze.ApplyAutoFreezeAsync(stoppingToken);
                 var notifier = scope.ServiceProvider.GetRequiredService<ISubscriptionOverdueNotifier>();
                 await notifier.ProcessOverdueClinicsAsync(stoppingToken);
             }

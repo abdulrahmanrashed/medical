@@ -3,13 +3,176 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/layout/responsive.dart';
 import '../../core/network/backend_api_client.dart';
+import 'clinic_owner_ui.dart';
 
 const Color _kPrimary = Color(0xFF004D40);
 
-class ClinicReceptionistsPanel extends StatefulWidget {
-  const ClinicReceptionistsPanel({super.key, required this.clinicId});
+/// Use the [BuildContext] from the screen that owns the FAB (e.g. [Scaffold]).
+Future<void> showAddClinicReceptionistSheet(
+  BuildContext anchorContext, {
+  required int clinicId,
+  required Future<void> Function() onSuccess,
+}) async {
+  final ok = await showModalBottomSheet<bool>(
+    context: anchorContext,
+    isScrollControlled: true,
+    showDragHandle: true,
+    useSafeArea: true,
+    builder: (ctx) => _AddReceptionistFormSheet(clinicId: clinicId),
+  );
+
+  if (ok == true && anchorContext.mounted) {
+    ScaffoldMessenger.of(anchorContext).showSnackBar(
+      const SnackBar(content: Text('Receptionist registered.')),
+    );
+    await onSuccess();
+  }
+}
+
+class _AddReceptionistFormSheet extends StatefulWidget {
+  const _AddReceptionistFormSheet({required this.clinicId});
 
   final int clinicId;
+
+  @override
+  State<_AddReceptionistFormSheet> createState() => _AddReceptionistFormSheetState();
+}
+
+class _AddReceptionistFormSheetState extends State<_AddReceptionistFormSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _emailCtrl;
+  late final TextEditingController _passCtrl;
+  late final TextEditingController _firstCtrl;
+  late final TextEditingController _lastCtrl;
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailCtrl = TextEditingController();
+    _passCtrl = TextEditingController();
+    _firstCtrl = TextEditingController();
+    _lastCtrl = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    _firstCtrl.dispose();
+    _lastCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() => _submitting = true);
+    try {
+      await BackendApiClient.instance.registerReception(
+        clinicId: widget.clinicId,
+        email: _emailCtrl.text.trim(),
+        password: _passCtrl.text,
+        firstName: _firstCtrl.text.trim(),
+        lastName: _lastCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pad = MediaQuery.viewInsetsOf(context);
+    return Padding(
+      padding: EdgeInsets.only(left: 20, right: 20, top: 8, bottom: pad.bottom + 20),
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Add receptionist', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _emailCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Email *',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _passCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Temporary password *',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => (v == null || v.length < 8) ? 'Min 8 characters' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _firstCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'First name *',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _lastCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Last name *',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 20),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: _kPrimary),
+                onPressed: _submitting ? null : _submit,
+                child: _submitting
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Register'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ClinicReceptionistsPanel extends StatefulWidget {
+  const ClinicReceptionistsPanel({
+    super.key,
+    required this.clinicId,
+    this.embedded = false,
+    this.onReloadReady,
+  });
+
+  final int clinicId;
+  final bool embedded;
+
+  /// Parent shell calls this to refresh after FAB add (e.g. when [embedded] is true).
+  final void Function(Future<void> Function() reload)? onReloadReady;
 
   @override
   State<ClinicReceptionistsPanel> createState() => _ClinicReceptionistsPanelState();
@@ -22,6 +185,12 @@ class _ClinicReceptionistsPanelState extends State<ClinicReceptionistsPanel> {
   void initState() {
     super.initState();
     _future = BackendApiClient.instance.getClinicReceptionists(widget.clinicId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.onReloadReady?.call(() async {
+        await _reload();
+      });
+    });
   }
 
   Future<void> _reload() async {
@@ -31,174 +200,131 @@ class _ClinicReceptionistsPanelState extends State<ClinicReceptionistsPanel> {
     await _future;
   }
 
-  Future<void> _showAdd() async {
-    final emailCtrl = TextEditingController();
-    final passCtrl = TextEditingController();
-    final firstCtrl = TextEditingController();
-    final lastCtrl = TextEditingController();
-    final formKey = GlobalKey<FormState>();
+  void _showAddSheet(BuildContext anchorContext) {
+    showAddClinicReceptionistSheet(
+      anchorContext,
+      clinicId: widget.clinicId,
+      onSuccess: _reload,
+    );
+  }
 
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (ctx) {
-        final pad = MediaQuery.viewInsetsOf(ctx);
-        return Padding(
-          padding: EdgeInsets.only(left: 20, right: 20, top: 8, bottom: pad.bottom + 20),
-          child: Form(
-            key: formKey,
-            child: SingleChildScrollView(
+  Widget _buildBody(EdgeInsets padding) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snap.hasError) {
+          return Center(
+            child: Padding(
+              padding: padding,
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Add receptionist', style: Theme.of(ctx).textTheme.titleLarge),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: emailCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Email *',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: passCtrl,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Temporary password *',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) =>
-                        (v == null || v.length < 8) ? 'Min 8 characters' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: firstCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'First name *',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: lastCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Last name *',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: _kPrimary),
-                    onPressed: () {
-                      if (formKey.currentState?.validate() ?? false) {
-                        Navigator.pop(ctx, true);
-                      }
-                    },
-                    child: const Text('Register'),
-                  ),
+                  Text('Could not load: ${snap.error}'),
+                  FilledButton(onPressed: _reload, child: const Text('Retry')),
                 ],
               ),
             ),
-          ),
+          );
+        }
+        final list = snap.data ?? const <Map<String, dynamic>>[];
+        if (list.isEmpty) {
+          return RefreshIndicator(
+            onRefresh: _reload,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height * 0.45,
+                child: Center(
+                  child: Padding(
+                    padding: padding,
+                    child: Text(
+                      'No receptionists yet. Use Add receptionist to register staff.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: ClinicOwnerUi.onSurfaceMuted),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final cols = Responsive.gridColumnCount(constraints.maxWidth);
+            final bottomInset = widget.embedded ? 24.0 : 100.0;
+            return RefreshIndicator(
+              onRefresh: _reload,
+              child: cols == 1
+                  ? ListView.builder(
+                      padding: padding.copyWith(bottom: bottomInset),
+                      itemCount: list.length,
+                      itemBuilder: (context, i) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _receptionistCard(list[i]),
+                      ),
+                    )
+                  : GridView.builder(
+                      padding: padding.copyWith(bottom: bottomInset),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: cols,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        mainAxisExtent: 88,
+                      ),
+                      itemCount: list.length,
+                      itemBuilder: (context, i) => _receptionistCard(list[i]),
+                    ),
+            );
+          },
         );
       },
     );
+  }
 
-    try {
-      if (ok == true) {
-        await BackendApiClient.instance.registerReception(
-          clinicId: widget.clinicId,
-          email: emailCtrl.text.trim(),
-          password: passCtrl.text,
-          firstName: firstCtrl.text.trim(),
-          lastName: lastCtrl.text.trim(),
-        );
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Receptionist registered.')),
-          );
-          _reload();
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e')),
-        );
-      }
-    } finally {
-      emailCtrl.dispose();
-      passCtrl.dispose();
-      firstCtrl.dispose();
-      lastCtrl.dispose();
-    }
+  Widget _receptionistCard(Map<String, dynamic> r) {
+    return Container(
+      decoration: ClinicOwnerUi.premiumCardDecoration(),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        title: Text(
+          '${r['firstName'] ?? ''} ${r['lastName'] ?? ''}'.trim(),
+          style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: ClinicOwnerUi.onSurfaceTitle),
+        ),
+        subtitle: Text(
+          r['email']?.toString() ?? '',
+          style: GoogleFonts.inter(color: ClinicOwnerUi.onSurfaceMuted, fontSize: 13),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final padding = Responsive.screenPadding(context);
+    final body = _buildBody(padding);
+
+    if (widget.embedded) {
+      return Container(color: ClinicOwnerUi.surface, child: body);
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Manage receptionists')),
+      backgroundColor: ClinicOwnerUi.surface,
+      appBar: AppBar(
+        title: const Text('Manage receptionists'),
+        backgroundColor: ClinicOwnerUi.surface,
+        surfaceTintColor: Colors.transparent,
+      ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAdd,
+        onPressed: () => _showAddSheet(context),
         backgroundColor: _kPrimary,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.person_add),
         label: const Text('Add receptionist'),
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _future,
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snap.hasError) {
-            return Center(
-              child: Padding(
-                padding: padding,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text('Could not load: ${snap.error}'),
-                    FilledButton(onPressed: _reload, child: const Text('Retry')),
-                  ],
-                ),
-              ),
-            );
-          }
-          final list = snap.data ?? const <Map<String, dynamic>>[];
-          return RefreshIndicator(
-            onRefresh: _reload,
-            child: ListView.builder(
-              padding: padding,
-              itemCount: list.length,
-              itemBuilder: (context, i) {
-                final r = list[i];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: ListTile(
-                    title: Text(
-                      '${r['firstName'] ?? ''} ${r['lastName'] ?? ''}'.trim(),
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(r['email']?.toString() ?? ''),
-                  ),
-                );
-              },
-            ),
-          );
-        },
-      ),
+      body: body,
     );
   }
 }

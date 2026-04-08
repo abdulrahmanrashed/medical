@@ -705,6 +705,7 @@ class _PatientAppointmentCard extends StatelessWidget {
             color: switch (a.status) {
               ApiAppointmentStatus.pending => Colors.orange.shade50,
               ApiAppointmentStatus.approved => Colors.green.shade50,
+              ApiAppointmentStatus.inProgress => Colors.teal.shade50,
               ApiAppointmentStatus.cancelled => theme.colorScheme.errorContainer.withValues(alpha: 0.35),
               _ => theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
             },
@@ -791,6 +792,22 @@ class _StatusLabel extends StatelessWidget {
                 color: Colors.green.shade800,
                 fontWeight: FontWeight.w800,
                 fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      ApiAppointmentStatus.inProgress => Row(
+          children: [
+            Icon(Icons.local_hospital_outlined, color: Colors.teal.shade800, size: 24),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Visit in progress',
+                style: TextStyle(
+                  color: Colors.teal.shade900,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
               ),
             ),
           ],

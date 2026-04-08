@@ -1,4 +1,6 @@
+import '../enums/doctor_specialization.dart';
 import '../enums/user_role.dart';
+import '../models/doctor_summary.dart';
 import '../storage/patient_local_storage.dart';
 
 class SessionManager {
@@ -10,6 +12,9 @@ class SessionManager {
   String? email;
   String? userId;
   int? doctorId;
+
+  /// From login payload and/or [applyDoctorMe]. Used by the doctor dashboard and session flows.
+  DoctorSpecialization? doctorSpecialization;
   /// Stable patient UUID from the API (`patient_id` claim).
   String? patientId;
   int? assignedClinicId;
@@ -53,6 +58,20 @@ class SessionManager {
     assignedClinicId = _parseOptionalInt(json['assignedClinicId']);
     final rawRoles = json['roles'] as List<dynamic>? ?? const [];
     roles = rawRoles.map((e) => e.toString()).toList();
+    final specRaw = json['specialization']?.toString();
+    if (specRaw != null && specRaw.trim().isNotEmpty) {
+      doctorSpecialization = DoctorSummary.specializationFromApi(specRaw);
+    }
+  }
+
+  /// Updates [doctorId] and [doctorSpecialization] from `GET /Doctors/me` (or equivalent map).
+  void applyDoctorMe(Map<String, dynamic> me) {
+    final id = _parseOptionalInt(me['id']);
+    if (id != null) doctorId = id;
+    final raw = me['specialization']?.toString();
+    if (raw != null && raw.trim().isNotEmpty) {
+      doctorSpecialization = DoctorSummary.specializationFromApi(raw);
+    }
   }
 
   void clear() {
@@ -60,6 +79,7 @@ class SessionManager {
     email = null;
     userId = null;
     doctorId = null;
+    doctorSpecialization = null;
     patientId = null;
     assignedClinicId = null;
     roles = const [];

@@ -24,8 +24,21 @@ public class Clinic : BaseEntity
     /// <summary>Set when super admins were notified about unpaid overdue subscription; cleared when payment is recorded.</summary>
     public DateTime? SubscriptionOverdueNotifiedAtUtc { get; set; }
 
+    /// <summary>Total contract or subscription amount for the clinic (billing).</summary>
+    public decimal TotalAmount { get; set; }
+
+    /// <summary>Sum of payments received (billing).</summary>
+    public decimal PaidAmount { get; set; }
+
+    /// <summary>Outstanding balance; should align with <see cref="TotalAmount"/> − <see cref="PaidAmount"/>.</summary>
+    public decimal RemainingAmount { get; set; }
+
+    /// <summary>When the current paid subscription period ends (UTC). Used with <see cref="RemainingAmount"/> for auto-freeze.</summary>
+    public DateTime? SubscriptionEndDate { get; set; }
+
     public ICollection<Doctor> Doctors { get; set; } = new List<Doctor>();
     public ICollection<PatientClinic> PatientClinics { get; set; } = new List<PatientClinic>();
+    public ICollection<ClinicInvoice> Invoices { get; set; } = new List<ClinicInvoice>();
 
     /// <summary>
     /// Anchor date for &quot;days since last payment&quot;: last payment, else subscription start, else clinic creation.
@@ -47,10 +60,17 @@ public class Clinic : BaseEntity
     /// </summary>
     public ClinicSubscriptionUiStatus GetSubscriptionStatus(DateTime? asOfUtc = null)
     {
+        if (PaymentStatus == ClinicPaymentStatus.Frozen)
+            return ClinicSubscriptionUiStatus.Frozen;
         if (PaymentStatus != ClinicPaymentStatus.Unpaid)
             return ClinicSubscriptionUiStatus.Active;
         return GetDaysSinceLastPaymentReference(asOfUtc) > 30
             ? ClinicSubscriptionUiStatus.UnpaidOverdue
             : ClinicSubscriptionUiStatus.Active;
+    }
+
+    public void RecalculateRemainingAmount()
+    {
+        RemainingAmount = Math.Max(0, TotalAmount - PaidAmount);
     }
 }

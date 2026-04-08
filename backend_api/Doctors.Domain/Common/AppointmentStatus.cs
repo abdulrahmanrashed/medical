@@ -6,5 +6,7 @@ public enum AppointmentStatus
     Approved = 1,
     Rescheduled = 2,
     Cancelled = 3,
-    Completed = 4
+    Completed = 4,
+    /// <summary>Doctor has started the visit; shown as live on the doctor queue until completed.</summary>
+    InProgress = 5
 }

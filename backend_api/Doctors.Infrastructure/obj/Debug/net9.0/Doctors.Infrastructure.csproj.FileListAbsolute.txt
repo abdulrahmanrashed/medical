@@ -17,3 +17,4 @@ E:\Users\abood\cursor_project\backend_api\Doctors.Infrastructure\obj\Debug\net9.
 E:\Users\abood\cursor_project\backend_api\Doctors.Infrastructure\obj\Debug\net9.0\Doctors.Infrastructure.pdb
 E:\Users\abood\cursor_project\backend_api\Doctors.Infrastructure\obj\Debug\net9.0\Doctors.Infrastructure.genruntimeconfig.cache
 E:\Users\abood\cursor_project\backend_api\Doctors.Infrastructure\obj\Debug\net9.0\ref\Doctors.Infrastructure.dll
+E:\Users\abood\cursor_project\backend_api\Doctors.Infrastructure\obj\Debug\net9.0\Doctors.Infrastructure.sourcelink.json

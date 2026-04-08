@@ -84,6 +84,8 @@ public static class DependencyInjection
         services.AddScoped<IClinicAdminProvisioner, ClinicAdminProvisioner>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
         services.AddScoped<ISubscriptionOverdueNotifier, SubscriptionOverdueNotifier>();
+        services.AddScoped<IClinicSubscriptionFreezeService, ClinicSubscriptionFreezeService>();
+        services.AddScoped<IClinicOwnerLookup, ClinicOwnerLookup>();
         services.AddScoped<IPatientIdentitySync, PatientIdentitySync>();
 
         return services;

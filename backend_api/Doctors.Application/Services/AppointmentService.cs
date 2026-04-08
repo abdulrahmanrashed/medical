@@ -150,6 +150,8 @@ public class AppointmentService : IAppointmentService
                 ?? throw new NotFoundException($"Doctor {docId} was not found.");
             if (doctor.ClinicId != dto.ClinicId)
                 throw new BadRequestAppException("Doctor does not belong to the selected clinic.");
+            if (!doctor.IsActive)
+                throw new BadRequestAppException("This doctor is currently unavailable for bookings.");
         }
 
         var status = isStaff ? AppointmentStatus.Approved : AppointmentStatus.Pending;
@@ -218,6 +220,16 @@ public class AppointmentService : IAppointmentService
         if (dto.Type == AppointmentType.General)
             dto.DoctorId = null;
 
+        if (dto.DoctorId is int newDocId)
+        {
+            var forBooking = await _doctors.GetByIdAsync(newDocId, cancellationToken)
+                ?? throw new NotFoundException($"Doctor {newDocId} was not found.");
+            if (forBooking.ClinicId != entity.ClinicId)
+                throw new BadRequestAppException("Doctor does not belong to this clinic.");
+            if (!forBooking.IsActive)
+                throw new BadRequestAppException("This doctor is currently unavailable for bookings.");
+        }
+
         entity.DoctorId = dto.DoctorId;
         entity.PatientName = dto.PatientName;
         entity.PhoneNumber = dto.PhoneNumber;
@@ -236,6 +248,61 @@ public class AppointmentService : IAppointmentService
             await _notifications.NotifyAsync(new CreateNotificationDto
             {
                 UserId = patient.UserId,
+                Title = "Appointment updated",
+                Message = $"Your appointment status is now {entity.Status}.",
+                Type = NotificationType.AppointmentUpdate,
+                RelatedAppointmentId = entity.Id
+            }, cancellationToken);
+        }
+
+        return await MapOneAsync(entity, cancellationToken);
+    }
+
+    public async Task<AppointmentDto> UpdateStatusByDoctorAsync(int id, AppointmentStatus newStatus, CancellationToken cancellationToken = default)
+    {
+        if (!_currentUser.IsInRole(AppRoles.Doctor))
+            throw new ForbiddenException("Only doctors can update session status.");
+
+        var entity = await _appointments.Query()
+            .Include(a => a.Clinic)
+            .Include(a => a.Doctor)
+            .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+        if (entity is null)
+            throw new NotFoundException($"Appointment {id} was not found.");
+
+        await EnsureCanAccessAsync(entity, cancellationToken);
+
+        switch (newStatus)
+        {
+            case AppointmentStatus.InProgress:
+                if (entity.Status is not (AppointmentStatus.Pending or AppointmentStatus.Approved))
+                {
+                    throw new BadRequestAppException(
+                        "Only pending or approved appointments can be moved to in progress.");
+                }
+                break;
+            case AppointmentStatus.Completed:
+                if (entity.Status != AppointmentStatus.InProgress)
+                {
+                    throw new BadRequestAppException(
+                        "Only an in-progress session can be completed. End the visit from the session screen.");
+                }
+                break;
+            default:
+                throw new BadRequestAppException("Doctors can only set status to InProgress or Completed.");
+        }
+
+        entity.Status = newStatus;
+        entity.UpdatedAtUtc = DateTime.UtcNow;
+        _appointments.Update(entity);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var patient = await _patients.GetByIdAsync(entity.PatientId, cancellationToken);
+        if (!string.IsNullOrEmpty(patient?.UserId))
+        {
+            await _notifications.NotifyAsync(new CreateNotificationDto
+            {
+                UserId = patient!.UserId!,
                 Title = "Appointment updated",
                 Message = $"Your appointment status is now {entity.Status}.",
                 Type = NotificationType.AppointmentUpdate,

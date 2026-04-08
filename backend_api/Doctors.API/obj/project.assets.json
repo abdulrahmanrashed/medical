@@ -5299,11 +5299,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.API\\Doctors.API.csproj",
+      "projectUniqueName": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\Doctors.API.csproj",
       "projectName": "Doctors.API",
-      "projectPath": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.API\\Doctors.API.csproj",
+      "projectPath": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\Doctors.API.csproj",
       "packagesPath": "C:\\Users\\abood\\.nuget\\packages\\",
-      "outputPath": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.API\\obj\\",
+      "outputPath": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "E:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -5324,11 +5324,11 @@
         "net9.0": {
           "targetAlias": "net9.0",
           "projectReferences": {
-            "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.Application\\Doctors.Application.csproj": {
-              "projectPath": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.Application\\Doctors.Application.csproj"
+            "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Application\\Doctors.Application.csproj": {
+              "projectPath": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Application\\Doctors.Application.csproj"
             },
-            "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj": {
-              "projectPath": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj"
+            "e:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj": {
+              "projectPath": "e:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj"
             }
           }
         }

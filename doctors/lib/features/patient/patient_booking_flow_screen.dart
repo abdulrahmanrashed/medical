@@ -62,7 +62,10 @@ class _PatientBookingFlowScreenState extends State<PatientBookingFlowScreen> {
     try {
       final id = int.parse(c.id);
       final raw = await BackendApiClient.instance.getDoctorsByClinic(id);
-      final roster = raw.map(DoctorSummary.fromApi).toList();
+      final roster = raw
+          .where((j) => j['isActive'] != false)
+          .map(DoctorSummary.fromApi)
+          .toList();
       if (!mounted) return;
       setState(() {
         _clinic = c.withDoctors(roster);

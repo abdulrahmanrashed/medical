@@ -9,3 +9,4 @@ E:\Users\abood\cursor_project\backend_api\Doctors.Domain\obj\Debug\net9.0\Doctor
 E:\Users\abood\cursor_project\backend_api\Doctors.Domain\obj\Debug\net9.0\refint\Doctors.Domain.dll
 E:\Users\abood\cursor_project\backend_api\Doctors.Domain\obj\Debug\net9.0\Doctors.Domain.pdb
 E:\Users\abood\cursor_project\backend_api\Doctors.Domain\obj\Debug\net9.0\ref\Doctors.Domain.dll
+E:\Users\abood\cursor_project\backend_api\Doctors.Domain\obj\Debug\net9.0\Doctors.Domain.sourcelink.json

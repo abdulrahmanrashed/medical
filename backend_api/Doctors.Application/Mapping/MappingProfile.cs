@@ -18,7 +18,12 @@ public class MappingProfile : Profile
             .ForMember(d => d.SubscriptionStartDate, o => o.MapFrom(s => s.SubscriptionStartDate))
             .ForMember(d => d.LastPaymentDate, o => o.MapFrom(s => s.LastPaymentDate))
             .ForMember(d => d.DaysSinceLastPaymentReference, o => o.MapFrom(s => s.GetDaysSinceLastPaymentReference(null)))
-            .ForMember(d => d.SubscriptionStatus, o => o.MapFrom(s => s.GetSubscriptionStatus(null)));
+            .ForMember(d => d.SubscriptionStatus, o => o.MapFrom(s => s.GetSubscriptionStatus(null)))
+            .ForMember(d => d.OwnerFullName, o => o.Ignore())
+            .ForMember(d => d.OwnerEmail, o => o.Ignore());
+
+        CreateMap<ClinicInvoice, ClinicInvoiceDto>()
+            .ForMember(d => d.InvoiceId, o => o.MapFrom(s => s.Id));
 
         CreateMap<Patient, PatientDto>()
             .ForMember(d => d.ClinicIds, o => o.MapFrom(s => s.PatientClinics.Select(pc => pc.ClinicId).ToList()));

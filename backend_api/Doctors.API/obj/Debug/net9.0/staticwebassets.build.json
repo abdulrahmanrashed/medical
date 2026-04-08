@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Hash": "UHbTDzevJlV0X1wNWeAeKXKZqtE9VUdwoHOBnzkSXuo=",
+  "Hash": "1NeDFJZcKudD2Mjsy6byP0ttNrqW0cU4AY4hZ2rcrqc=",
   "Source": "Doctors.API",
   "BasePath": "_content/Doctors.API",
   "Mode": "Default",
@@ -10,17 +10,17 @@
     {
       "Name": "Doctors.API\\wwwroot",
       "Source": "Doctors.API",
-      "ContentRoot": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\",
+      "ContentRoot": "e:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\",
       "BasePath": "_content/Doctors.API",
       "Pattern": "**"
     }
   ],
   "Assets": [
     {
-      "Identity": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic",
+      "Identity": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic",
       "SourceId": "Doctors.API",
       "SourceType": "Discovered",
-      "ContentRoot": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\",
+      "ContentRoot": "e:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\",
       "BasePath": "_content/Doctors.API",
       "RelativePath": "uploads/20260407/600ff0c8612040568c1a2344be5add37#[.{fingerprint}]?.heic",
       "AssetKind": "All",
@@ -36,12 +36,54 @@
       "CopyToOutputDirectory": "Never",
       "CopyToPublishDirectory": "PreserveNewest",
       "OriginalItemSpec": "wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic"
+    },
+    {
+      "Identity": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\uploads\\20260407\\ebeedf0919b24d0abd550a33ac7420c9.heic",
+      "SourceId": "Doctors.API",
+      "SourceType": "Discovered",
+      "ContentRoot": "e:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\",
+      "BasePath": "_content/Doctors.API",
+      "RelativePath": "uploads/20260407/ebeedf0919b24d0abd550a33ac7420c9#[.{fingerprint}]?.heic",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "w7u4snj0pd",
+      "Integrity": "BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\uploads\\20260407\\ebeedf0919b24d0abd550a33ac7420c9.heic"
+    },
+    {
+      "Identity": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\uploads\\20260408\\bafef3e540f242f1af79c7f300c9a54d.jpg",
+      "SourceId": "Doctors.API",
+      "SourceType": "Discovered",
+      "ContentRoot": "e:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\",
+      "BasePath": "_content/Doctors.API",
+      "RelativePath": "uploads/20260408/bafef3e540f242f1af79c7f300c9a54d#[.{fingerprint}]?.jpg",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "ikdxxnavci",
+      "Integrity": "8p9+8w1LhHI/gumJq4+TQyR19m7z9bR7o15XR2vEmxQ=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\uploads\\20260408\\bafef3e540f242f1af79c7f300c9a54d.jpg"
     }
   ],
   "Endpoints": [
     {
       "Route": "uploads/20260407/600ff0c8612040568c1a2344be5add37.heic",
-      "AssetFile": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic",
+      "AssetFile": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic",
       "Selectors": [],
       "ResponseHeaders": [
         {
@@ -78,7 +120,7 @@
     },
     {
       "Route": "uploads/20260407/600ff0c8612040568c1a2344be5add37.w7u4snj0pd.heic",
-      "AssetFile": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic",
+      "AssetFile": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic",
       "Selectors": [],
       "ResponseHeaders": [
         {
@@ -118,6 +160,170 @@
         {
           "Name": "integrity",
           "Value": "sha256-BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE="
+        }
+      ]
+    },
+    {
+      "Route": "uploads/20260407/ebeedf0919b24d0abd550a33ac7420c9.heic",
+      "AssetFile": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\uploads\\20260407\\ebeedf0919b24d0abd550a33ac7420c9.heic",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "1065008"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "application/octet-stream"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Tue, 07 Apr 2026 22:06:56 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE="
+        }
+      ]
+    },
+    {
+      "Route": "uploads/20260407/ebeedf0919b24d0abd550a33ac7420c9.w7u4snj0pd.heic",
+      "AssetFile": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\uploads\\20260407\\ebeedf0919b24d0abd550a33ac7420c9.heic",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "1065008"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "application/octet-stream"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Tue, 07 Apr 2026 22:06:56 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "w7u4snj0pd"
+        },
+        {
+          "Name": "label",
+          "Value": "uploads/20260407/ebeedf0919b24d0abd550a33ac7420c9.heic"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE="
+        }
+      ]
+    },
+    {
+      "Route": "uploads/20260408/bafef3e540f242f1af79c7f300c9a54d.ikdxxnavci.jpg",
+      "AssetFile": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\uploads\\20260408\\bafef3e540f242f1af79c7f300c9a54d.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "278085"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"8p9+8w1LhHI/gumJq4+TQyR19m7z9bR7o15XR2vEmxQ=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Wed, 08 Apr 2026 22:17:04 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "ikdxxnavci"
+        },
+        {
+          "Name": "label",
+          "Value": "uploads/20260408/bafef3e540f242f1af79c7f300c9a54d.jpg"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-8p9+8w1LhHI/gumJq4+TQyR19m7z9bR7o15XR2vEmxQ="
+        }
+      ]
+    },
+    {
+      "Route": "uploads/20260408/bafef3e540f242f1af79c7f300c9a54d.jpg",
+      "AssetFile": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\uploads\\20260408\\bafef3e540f242f1af79c7f300c9a54d.jpg",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "278085"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "image/jpeg"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"8p9+8w1LhHI/gumJq4+TQyR19m7z9bR7o15XR2vEmxQ=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Wed, 08 Apr 2026 22:17:04 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=3600, must-revalidate"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-8p9+8w1LhHI/gumJq4+TQyR19m7z9bR7o15XR2vEmxQ="
         }
       ]
     }

@@ -26,7 +26,8 @@ enum ApiAppointmentStatus {
   approved(1),
   rescheduled(2),
   cancelled(3),
-  completed(4);
+  completed(4),
+  inProgress(5);
 
   const ApiAppointmentStatus(this.value);
   final int value;
@@ -46,6 +47,7 @@ ApiAppointmentStatus _parseAppointmentStatus(dynamic raw) {
   if (s == '2' || s == 'rescheduled') return ApiAppointmentStatus.rescheduled;
   if (s == '3' || s == 'cancelled') return ApiAppointmentStatus.cancelled;
   if (s == '4' || s == 'completed') return ApiAppointmentStatus.completed;
+  if (s == '5' || s == 'inprogress') return ApiAppointmentStatus.inProgress;
   return ApiAppointmentStatus.pending;
 }
 
@@ -314,6 +316,27 @@ class ApiAppointment {
         createdAtUtc: _tryParseUtcIso8601(json['createdAtUtc']),
         updatedAtUtc: _tryParseUtcIso8601(json['updatedAtUtc']),
       );
+
+  /// Opens the doctor session screen from the patient archive when there is no live appointment row. [id] is 0.
+  factory ApiAppointment.forHistoryReview({
+    required String patientId,
+    required String patientName,
+    required String phoneNumber,
+    required int clinicId,
+    required DateTime lastVisitUtc,
+  }) {
+    return ApiAppointment(
+      id: 0,
+      patientId: patientId,
+      clinicId: clinicId,
+      doctorId: null,
+      patientName: patientName,
+      phoneNumber: phoneNumber,
+      scheduledAtUtc: lastVisitUtc,
+      type: ApiAppointmentType.general,
+      status: ApiAppointmentStatus.completed,
+    );
+  }
 }
 
 class ApiMedicalRecord {

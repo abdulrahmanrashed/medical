@@ -11,7 +11,7 @@ import '../../core/network/backend_api_client.dart';
 import '../../core/network/session_manager.dart';
 import '../admin/admin_shell_screen.dart';
 import '../clinic_owner/clinic_owner_shell_screen.dart';
-import '../doctor/doctor_specialization_picker_screen.dart';
+import '../doctor/doctor_dashboard_screen.dart';
 import '../patient/patient_shell_screen.dart';
 import '../reception/reception_dashboard_controller.dart';
 import '../reception/reception_shell_screen.dart';
@@ -80,10 +80,27 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      if (widget.role == UserRole.doctor) {
+        try {
+          final me = await BackendApiClient.instance.getDoctorMe();
+          if (!mounted) return;
+          SessionManager.instance.applyDoctorMe(me);
+        } catch (_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Could not load doctor profile. Using defaults; pull to refresh on the dashboard.',
+              ),
+            ),
+          );
+        }
+      }
+
       final Widget destination = switch (widget.role) {
         UserRole.admin => const AdminShellScreen(),
         UserRole.clinicManagement => const ClinicOwnerShellScreen(),
-        UserRole.doctor => const DoctorSpecializationPickerScreen(),
+        UserRole.doctor => const DoctorDashboardScreen(),
         UserRole.receptionist => ChangeNotifierProvider(
             create: (_) {
               final c = ReceptionDashboardController();
@@ -104,6 +121,11 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute<void>(
           builder: (_) => AccountSuspendedScreen(message: e.message),
         ),
+      );
+    } on AccountFrozenException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
       );
     } catch (_) {
       if (!mounted) return;

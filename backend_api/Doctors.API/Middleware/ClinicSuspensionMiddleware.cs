@@ -38,7 +38,7 @@ public class ClinicSuspensionMiddleware
                         var doctor = await db.Doctors.AsNoTracking()
                             .Include(d => d.Clinic)
                             .FirstOrDefaultAsync(d => d.UserId == userId, context.RequestAborted);
-                        if (doctor?.Clinic is { PaymentStatus: ClinicPaymentStatus.Unpaid })
+                        if (doctor?.Clinic is { } dc && dc.PaymentStatus.SuspendsStaffAccess())
                         {
                             await WriteForbiddenAsync(context);
                             return;
@@ -56,7 +56,7 @@ public class ClinicSuspensionMiddleware
                         {
                             var clinic = await db.Clinics.AsNoTracking()
                                 .FirstOrDefaultAsync(c => c.Id == cid, context.RequestAborted);
-                            if (clinic?.PaymentStatus == ClinicPaymentStatus.Unpaid)
+                            if (clinic != null && clinic.PaymentStatus.SuspendsStaffAccess())
                             {
                                 await WriteForbiddenAsync(context);
                                 return;

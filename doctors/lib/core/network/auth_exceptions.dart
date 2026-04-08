@@ -8,3 +8,13 @@ class AccountSuspendedException implements Exception {
   @override
   String toString() => message;
 }
+
+/// Thrown when login returns 403 because the doctor account is frozen (soft-deactivated).
+class AccountFrozenException implements Exception {
+  AccountFrozenException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}

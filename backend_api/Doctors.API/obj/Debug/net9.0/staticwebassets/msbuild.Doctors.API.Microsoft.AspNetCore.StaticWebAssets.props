@@ -18,5 +18,41 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\uploads\20260407\600ff0c8612040568c1a2344be5add37.heic'))</OriginalItemSpec>
     </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\uploads\20260407\ebeedf0919b24d0abd550a33ac7420c9.heic'))">
+      <SourceType>Package</SourceType>
+      <SourceId>Doctors.API</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/Doctors.API</BasePath>
+      <RelativePath>uploads/20260407/ebeedf0919b24d0abd550a33ac7420c9.heic</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>w7u4snj0pd</Fingerprint>
+      <Integrity>BAbfNmPfCF657Q9WbAbKWsDyweWkpRMejkHNJeFTNgE=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\uploads\20260407\ebeedf0919b24d0abd550a33ac7420c9.heic'))</OriginalItemSpec>
+    </StaticWebAsset>
+    <StaticWebAsset Include="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\uploads\20260408\bafef3e540f242f1af79c7f300c9a54d.jpg'))">
+      <SourceType>Package</SourceType>
+      <SourceId>Doctors.API</SourceId>
+      <ContentRoot>$(MSBuildThisFileDirectory)..\staticwebassets\</ContentRoot>
+      <BasePath>_content/Doctors.API</BasePath>
+      <RelativePath>uploads/20260408/bafef3e540f242f1af79c7f300c9a54d.jpg</RelativePath>
+      <AssetKind>All</AssetKind>
+      <AssetMode>All</AssetMode>
+      <AssetRole>Primary</AssetRole>
+      <RelatedAsset></RelatedAsset>
+      <AssetTraitName></AssetTraitName>
+      <AssetTraitValue></AssetTraitValue>
+      <Fingerprint>ikdxxnavci</Fingerprint>
+      <Integrity>8p9+8w1LhHI/gumJq4+TQyR19m7z9bR7o15XR2vEmxQ=</Integrity>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\uploads\20260408\bafef3e540f242f1af79c7f300c9a54d.jpg'))</OriginalItemSpec>
+    </StaticWebAsset>
   </ItemGroup>
 </Project>

@@ -4846,11 +4846,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj",
+      "projectUniqueName": "e:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj",
       "projectName": "Doctors.Infrastructure",
-      "projectPath": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj",
+      "projectPath": "e:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj",
       "packagesPath": "C:\\Users\\abood\\.nuget\\packages\\",
-      "outputPath": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\obj\\",
+      "outputPath": "e:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "E:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -4871,11 +4871,11 @@
         "net9.0": {
           "targetAlias": "net9.0",
           "projectReferences": {
-            "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.Application\\Doctors.Application.csproj": {
-              "projectPath": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.Application\\Doctors.Application.csproj"
+            "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Application\\Doctors.Application.csproj": {
+              "projectPath": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Application\\Doctors.Application.csproj"
             },
-            "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.Domain\\Doctors.Domain.csproj": {
-              "projectPath": "E:\\USers\\abood\\cursor_project\\backend_api\\Doctors.Domain\\Doctors.Domain.csproj"
+            "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Domain\\Doctors.Domain.csproj": {
+              "projectPath": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Domain\\Doctors.Domain.csproj"
             }
           }
         }

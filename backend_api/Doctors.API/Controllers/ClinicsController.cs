@@ -29,9 +29,18 @@ public class ClinicsController : ControllerBase
 
     [HttpGet]
     [AllowAnonymous]
-    public async Task<ActionResult<IReadOnlyList<ClinicDto>>> GetAll(CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<ClinicDto>>> GetAll(
+        [FromQuery] string? search,
+        CancellationToken cancellationToken)
     {
-        return Ok(await _clinics.GetAllAsync(cancellationToken));
+        return Ok(await _clinics.GetAllAsync(search, cancellationToken));
+    }
+
+    [HttpGet("invoices/all")]
+    [Authorize(Roles = AppRoles.Admin)]
+    public async Task<ActionResult<IReadOnlyList<ClinicInvoiceListItemDto>>> GetAllInvoices(CancellationToken cancellationToken)
+    {
+        return Ok(await _clinics.GetAllInvoicesAsync(cancellationToken));
     }
 
     [HttpGet("{id:int}")]
@@ -64,6 +73,24 @@ public class ClinicsController : ControllerBase
         CancellationToken cancellationToken)
     {
         return Ok(await _clinics.SetPaymentStatusAsync(id, dto.PaymentStatus, cancellationToken));
+    }
+
+    /// <summary>Records a subscription payment, updates balances and subscription end date, and appends billing history.</summary>
+    [HttpPost("{id:int}/payment")]
+    [Authorize(Roles = AppRoles.Admin)]
+    public async Task<ActionResult<ClinicDto>> RecordPayment(
+        int id,
+        [FromBody] RecordClinicPaymentDto dto,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _clinics.RecordPaymentAsync(id, dto, cancellationToken));
+    }
+
+    [HttpGet("{id:int}/invoices")]
+    [Authorize(Roles = AppRoles.Admin)]
+    public async Task<ActionResult<IReadOnlyList<ClinicInvoiceDto>>> GetInvoices(int id, CancellationToken cancellationToken)
+    {
+        return Ok(await _clinics.GetInvoicesAsync(id, cancellationToken));
     }
 
     [HttpGet("{id:int}/receptionists")]

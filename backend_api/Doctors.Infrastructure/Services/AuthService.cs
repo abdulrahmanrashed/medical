@@ -92,7 +92,10 @@ public class AuthService : IAuthService
             var doctor = await _db.Doctors.AsNoTracking()
                 .Include(d => d.Clinic)
                 .FirstOrDefaultAsync(d => d.UserId == user.Id, cancellationToken);
-            if (doctor?.Clinic is { PaymentStatus: ClinicPaymentStatus.Unpaid })
+            if (doctor is not null && !doctor.IsActive)
+                throw new ForbiddenException(
+                    "Your account is frozen. Please contact your clinic administrator.");
+            if (doctor?.Clinic is { } cl && cl.PaymentStatus.SuspendsStaffAccess())
                 throw new ForbiddenException(suspended);
         }
 
@@ -100,7 +103,7 @@ public class AuthService : IAuthService
         {
             var clinic = await _db.Clinics.AsNoTracking()
                 .FirstOrDefaultAsync(c => c.Id == receptionClinicId, cancellationToken);
-            if (clinic?.PaymentStatus == ClinicPaymentStatus.Unpaid)
+            if (clinic != null && clinic.PaymentStatus.SuspendsStaffAccess())
                 throw new ForbiddenException(suspended);
         }
     }
@@ -231,6 +234,10 @@ public class AuthService : IAuthService
             ClinicId = request.ClinicId,
             Specialization = request.Specialization,
             LicenseNumber = request.LicenseNumber,
+            PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim(),
+            YearsOfExperience = request.YearsOfExperience,
+            Gender = string.IsNullOrWhiteSpace(request.Gender) ? null : request.Gender.Trim(),
+            IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
         _db.Doctors.Add(doctor);

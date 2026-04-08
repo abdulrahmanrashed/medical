@@ -6,7 +6,7 @@ class ApiService {
   ApiService._() {
     _dio = Dio(
       BaseOptions(
-        baseUrl: 'http://192.168.1.5:5191/api',
+        baseUrl: 'http://192.168.1.6:5191/api',
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 15),
         headers: <String, dynamic>{

@@ -14,7 +14,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     }
 
     public DbSet<Clinic> Clinics => Set<Clinic>();
+    public DbSet<ClinicInvoice> ClinicInvoices => Set<ClinicInvoice>();
     public DbSet<Doctor> Doctors => Set<Doctor>();
+    public DbSet<DoctorWorkSchedule> DoctorWorkSchedules => Set<DoctorWorkSchedule>();
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<PatientClinic> PatientClinics => Set<PatientClinic>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
@@ -121,9 +123,34 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasForeignKey(d => d.ClinicId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.Entity<Clinic>()
-            .Property(c => c.PaymentStatus)
-            .HasConversion<int>();
+        builder.Entity<DoctorWorkSchedule>(e =>
+        {
+            e.HasIndex(s => new { s.DoctorId, s.ShiftDate }).IsUnique();
+            e.HasOne(s => s.Doctor)
+                .WithMany(d => d.WorkSchedules)
+                .HasForeignKey(s => s.DoctorId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.Property(s => s.ShiftDate).HasColumnType("date");
+            e.Property(s => s.StartTime).HasColumnType("time");
+            e.Property(s => s.EndTime).HasColumnType("time");
+        });
+
+        builder.Entity<Clinic>(e =>
+        {
+            e.Property(c => c.PaymentStatus).HasConversion<int>();
+            e.Property(c => c.TotalAmount).HasPrecision(18, 2);
+            e.Property(c => c.PaidAmount).HasPrecision(18, 2);
+            e.Property(c => c.RemainingAmount).HasPrecision(18, 2);
+        });
+
+        builder.Entity<ClinicInvoice>(e =>
+        {
+            e.Property(i => i.AmountPaid).HasPrecision(18, 2);
+            e.HasOne(i => i.Clinic)
+                .WithMany(c => c.Invoices)
+                .HasForeignKey(i => i.ClinicId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         builder.Entity<PatientClinic>()
             .HasOne(pc => pc.Patient)

@@ -15,6 +15,7 @@ Future<void> showReceptionAddAppointmentSheet(BuildContext parentContext) {
     context: parentContext,
     isScrollControlled: true,
     showDragHandle: true,
+    useSafeArea: true,
     builder: (ctx) {
       final bottom = MediaQuery.viewInsetsOf(ctx).bottom;
       return Padding(
@@ -88,7 +89,11 @@ class _AddAppointmentFormState extends State<_AddAppointmentForm> {
     setState(() => _doctorsLoading = true);
     try {
       final list = await BackendApiClient.instance.getDoctorsByClinic(clinicId);
-      if (mounted) setState(() => _doctors = list);
+      if (mounted) {
+        setState(() {
+          _doctors = list.where((j) => j['isActive'] != false).toList();
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _doctors = []);
     } finally {
