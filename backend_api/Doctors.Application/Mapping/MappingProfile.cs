@@ -1,6 +1,7 @@
 using AutoMapper;
 using Doctors.Application.DTOs.Appointments;
 using Doctors.Application.DTOs.Clinics;
+using Doctors.Application.DTOs.MedicalFiles;
 using Doctors.Application.DTOs.MedicalRecords;
 using Doctors.Application.DTOs.Notifications;
 using Doctors.Application.DTOs.Patients;
@@ -26,12 +27,15 @@ public class MappingProfile : Profile
             .ForMember(d => d.InvoiceId, o => o.MapFrom(s => s.Id));
 
         CreateMap<Patient, PatientDto>()
-            .ForMember(d => d.ClinicIds, o => o.MapFrom(s => s.PatientClinics.Select(pc => pc.ClinicId).ToList()));
+            .ForMember(d => d.ClinicIds, o => o.MapFrom(s => s.PatientClinics.Select(pc => pc.ClinicId).ToList()))
+            .ForMember(d => d.ChronicDiseases, o => o.MapFrom(s => (IReadOnlyList<string>)s.ChronicDiseases));
 
         CreateMap<Appointment, AppointmentDto>()
             .ForMember(d => d.ClinicName, o => o.MapFrom(s => s.Clinic.Name))
             .ForMember(d => d.DoctorName, o => o.Ignore())
             .ForMember(d => d.PatientName, o => o.MapFrom(s => s.PatientName))
+            .ForMember(d => d.AppointmentPrescriptions,
+                o => o.MapFrom(s => s.AppointmentPrescriptions.OrderBy(x => x.Id)))
             // EF often returns Unspecified; force UTC so JSON includes "Z" and clients parse as UTC.
             .ForMember(d => d.ScheduledAtUtc,
                 o => o.MapFrom(s => DateTime.SpecifyKind(s.ScheduledAtUtc, DateTimeKind.Utc)))
@@ -55,6 +59,9 @@ public class MappingProfile : Profile
             .ForMember(d => d.DoctorId, o => o.MapFrom(s => s.DoctorId));
 
         CreateMap<Medication, MedicationDto>();
+        CreateMap<AppointmentPrescription, AppointmentPrescriptionDto>();
+        CreateMap<MedicalFile, MedicalFileDto>()
+            .ForMember(d => d.PublicUrl, o => o.Ignore());
         CreateMap<FileAttachment, FileAttachmentDto>();
         CreateMap<Notification, NotificationDto>();
     }

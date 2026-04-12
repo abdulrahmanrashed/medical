@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Doctors.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialSetup : Migration
+    public partial class InitialRefactorWithSpecialties : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -65,6 +65,13 @@ namespace Doctors.Infrastructure.Migrations
                     Email = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     ClinicAdminUserId = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     PaymentStatus = table.Column<int>(type: "int", nullable: false),
+                    SubscriptionStartDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    LastPaymentDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    SubscriptionOverdueNotifiedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    TotalAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    PaidAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    RemainingAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    SubscriptionEndDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -98,13 +105,17 @@ namespace Doctors.Infrastructure.Migrations
                 name: "Patients",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PhoneNumber = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Email = table.Column<string>(type: "nvarchar(450)", nullable: true),
+                    PasswordHash = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    FullName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    InsuranceStatus = table.Column<bool>(type: "bit", nullable: false),
+                    InsuranceDetails = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ChronicDiseases = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    HasChronicCondition = table.Column<bool>(type: "bit", nullable: false),
+                    RegistrationStatus = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     UserId = table.Column<string>(type: "nvarchar(450)", nullable: true),
-                    FirstName = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    LastName = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Phone = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Email = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     DateOfBirth = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true)
@@ -221,6 +232,30 @@ namespace Doctors.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "ClinicInvoices",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ClinicId = table.Column<int>(type: "int", nullable: false),
+                    AmountPaid = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    PaymentDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    NextExpiryDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ClinicInvoices", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ClinicInvoices_Clinics_ClinicId",
+                        column: x => x.ClinicId,
+                        principalTable: "Clinics",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Doctors",
                 columns: table => new
                 {
@@ -230,6 +265,10 @@ namespace Doctors.Infrastructure.Migrations
                     ClinicId = table.Column<int>(type: "int", nullable: false),
                     Specialization = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     LicenseNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PhoneNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    YearsOfExperience = table.Column<int>(type: "int", nullable: false),
+                    Gender = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -250,7 +289,7 @@ namespace Doctors.Infrastructure.Migrations
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    PatientId = table.Column<int>(type: "int", nullable: false),
+                    PatientId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     ClinicId = table.Column<int>(type: "int", nullable: false),
                     LinkedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
@@ -279,7 +318,7 @@ namespace Doctors.Infrastructure.Migrations
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    PatientId = table.Column<int>(type: "int", nullable: false),
+                    PatientId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     ClinicId = table.Column<int>(type: "int", nullable: false),
                     DoctorId = table.Column<int>(type: "int", nullable: true),
                     PatientName = table.Column<string>(type: "nvarchar(max)", nullable: false),
@@ -288,6 +327,9 @@ namespace Doctors.Infrastructure.Migrations
                     Type = table.Column<int>(type: "int", nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),
                     Notes = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    DoctorNotes = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ReceptionNotes = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SpecializedDataJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -315,12 +357,38 @@ namespace Doctors.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "DoctorWorkSchedules",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    DoctorId = table.Column<int>(type: "int", nullable: false),
+                    ShiftDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    StartTime = table.Column<TimeOnly>(type: "time", nullable: true),
+                    EndTime = table.Column<TimeOnly>(type: "time", nullable: true),
+                    Notes = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_DoctorWorkSchedules", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_DoctorWorkSchedules_Doctors_DoctorId",
+                        column: x => x.DoctorId,
+                        principalTable: "Doctors",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "MedicalRecords",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    PatientId = table.Column<int>(type: "int", nullable: false),
+                    PatientId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     DoctorId = table.Column<int>(type: "int", nullable: false),
                     ClinicId = table.Column<int>(type: "int", nullable: false),
                     Symptoms = table.Column<string>(type: "nvarchar(max)", nullable: true),
@@ -486,6 +554,11 @@ namespace Doctors.Infrastructure.Migrations
                 filter: "[NormalizedUserName] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
+                name: "IX_ClinicInvoices_ClinicId",
+                table: "ClinicInvoices",
+                column: "ClinicId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Doctors_ClinicId",
                 table: "Doctors",
                 column: "ClinicId");
@@ -494,6 +567,12 @@ namespace Doctors.Infrastructure.Migrations
                 name: "IX_Doctors_UserId",
                 table: "Doctors",
                 column: "UserId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_DoctorWorkSchedules_DoctorId_ShiftDate",
+                table: "DoctorWorkSchedules",
+                columns: new[] { "DoctorId", "ShiftDate" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -530,6 +609,19 @@ namespace Doctors.Infrastructure.Migrations
                 name: "IX_PatientClinics_PatientId_ClinicId",
                 table: "PatientClinics",
                 columns: new[] { "PatientId", "ClinicId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Patients_Email",
+                table: "Patients",
+                column: "Email",
+                unique: true,
+                filter: "[Email] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Patients_PhoneNumber",
+                table: "Patients",
+                column: "PhoneNumber",
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -570,6 +662,12 @@ namespace Doctors.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "AspNetUserTokens");
+
+            migrationBuilder.DropTable(
+                name: "ClinicInvoices");
+
+            migrationBuilder.DropTable(
+                name: "DoctorWorkSchedules");
 
             migrationBuilder.DropTable(
                 name: "FileAttachments");

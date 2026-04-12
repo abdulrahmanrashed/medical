@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Domain\\Doctors.Domain.csproj": {}
+    "E:\\users\\abood\\cursor_project\\backend_api\\Doctors.Domain\\Doctors.Domain.csproj": {}
   },
   "projects": {
-    "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Domain\\Doctors.Domain.csproj": {
+    "E:\\users\\abood\\cursor_project\\backend_api\\Doctors.Domain\\Doctors.Domain.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Domain\\Doctors.Domain.csproj",
+        "projectUniqueName": "E:\\users\\abood\\cursor_project\\backend_api\\Doctors.Domain\\Doctors.Domain.csproj",
         "projectName": "Doctors.Domain",
-        "projectPath": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Domain\\Doctors.Domain.csproj",
+        "projectPath": "E:\\users\\abood\\cursor_project\\backend_api\\Doctors.Domain\\Doctors.Domain.csproj",
         "packagesPath": "C:\\Users\\abood\\.nuget\\packages\\",
-        "outputPath": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Domain\\obj\\",
+        "outputPath": "E:\\users\\abood\\cursor_project\\backend_api\\Doctors.Domain\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "E:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

@@ -23,7 +23,10 @@ public class Patient
 
     public string? InsuranceDetails { get; set; }
 
-    public string? ChronicDiseases { get; set; }
+    /// <summary>Persisted as JSON array of strings in the database.</summary>
+    public List<string> ChronicDiseases { get; set; } = new();
+
+    public bool HasChronicCondition { get; set; }
 
     /// <summary>DRAFT = created by reception with phone/name only; COMPLETED = patient finished app registration.</summary>
     public PatientRegistrationStatus RegistrationStatus { get; set; } = PatientRegistrationStatus.Draft;
@@ -39,4 +42,5 @@ public class Patient
     public ICollection<PatientClinic> PatientClinics { get; set; } = new List<PatientClinic>();
     public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
     public ICollection<MedicalRecord> MedicalRecords { get; set; } = new List<MedicalRecord>();
+    public ICollection<MedicalFile> MedicalFiles { get; set; } = new List<MedicalFile>();
 }

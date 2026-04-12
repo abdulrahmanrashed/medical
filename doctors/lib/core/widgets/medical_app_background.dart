@@ -6,7 +6,8 @@ class MedicalAppBackground extends StatelessWidget {
 
   final Widget child;
 
-  static const Color paleMedicalBlue = Color(0xFFF0F8FF);
+  /// App canvas / scaffold background (off-white).
+  static const Color paleMedicalBlue = Color(0xFFF5F5F7);
 
   @override
   Widget build(BuildContext context) {
@@ -31,10 +32,10 @@ class _MedicalGeometricPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const spacing = 44.0;
     final line = Paint()
-      ..color = const Color(0xFF008080).withValues(alpha: 0.045)
+      ..color = const Color(0xFF00A1A1).withValues(alpha: 0.045)
       ..strokeWidth = 0.6;
     final dot = Paint()
-      ..color = const Color(0xFF008080).withValues(alpha: 0.05)
+      ..color = const Color(0xFF00A1A1).withValues(alpha: 0.05)
       ..style = PaintingStyle.fill;
 
     for (double x = 0; x <= size.width; x += spacing) {

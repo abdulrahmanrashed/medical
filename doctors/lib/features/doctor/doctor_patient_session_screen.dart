@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -110,6 +111,16 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
   bool _loading = true;
   bool _endingSession = false;
   String? _bootstrapError;
+  ApiPatient? _patientProfile;
+  late final TextEditingController _sessionDoctorNotesCtrl;
+  late final TextEditingController _weeksCtrl;
+  late final TextEditingController _fetalHrCtrl;
+  late final TextEditingController _a1cCtrl;
+  late final TextEditingController _weightKgCtrl;
+  bool _savingVisitFields = false;
+  late ApiAppointment _appointmentSnapshot;
+  late final TextEditingController _requestedTestsCtrl;
+  List<ApiMedicalFile> _patientUploads = [];
 
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return;
@@ -119,6 +130,15 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
   @override
   void initState() {
     super.initState();
+    _appointmentSnapshot = widget.appointment;
+    _requestedTestsCtrl =
+        TextEditingController(text: widget.appointment.requestedTests ?? '');
+    _sessionDoctorNotesCtrl = TextEditingController(text: widget.appointment.doctorNotes ?? '');
+    _weeksCtrl = TextEditingController();
+    _fetalHrCtrl = TextEditingController();
+    _a1cCtrl = TextEditingController();
+    _weightKgCtrl = TextEditingController();
+    _applySpecializedJsonToControllers(widget.appointment.specializedDataJson);
     _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(_onTabChanged);
     _bootstrap();
@@ -128,7 +148,79 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
   void dispose() {
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
+    _requestedTestsCtrl.dispose();
+    _sessionDoctorNotesCtrl.dispose();
+    _weeksCtrl.dispose();
+    _fetalHrCtrl.dispose();
+    _a1cCtrl.dispose();
+    _weightKgCtrl.dispose();
     super.dispose();
+  }
+
+  void _applySpecializedJsonToControllers(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return;
+    try {
+      final map = jsonDecode(raw) as Map<String, dynamic>?;
+      if (map == null) return;
+      final w = map['weeks'];
+      final f = map['fetalHeartRate'];
+      final a = map['a1cLevel'];
+      final kg = map['weightKg'];
+      if (w != null) _weeksCtrl.text = w.toString();
+      if (f != null) _fetalHrCtrl.text = f.toString();
+      if (a != null) _a1cCtrl.text = a.toString();
+      if (kg != null) _weightKgCtrl.text = kg.toString();
+    } catch (_) {}
+  }
+
+  Future<void> _saveVisitClinicalData() async {
+    final a = _appointmentSnapshot;
+    if (a.id <= 0 || widget.readOnly) return;
+    setState(() => _savingVisitFields = true);
+    try {
+      String? specJson;
+      switch (a.type) {
+        case ApiAppointmentType.pregnancyFollowUp:
+          final o = <String, dynamic>{};
+          final w = _weeksCtrl.text.trim();
+          final f = _fetalHrCtrl.text.trim();
+          if (w.isNotEmpty) o['weeks'] = num.tryParse(w) ?? int.tryParse(w);
+          if (f.isNotEmpty) o['fetalHeartRate'] = num.tryParse(f) ?? int.tryParse(f);
+          specJson = jsonEncode(o);
+          break;
+        case ApiAppointmentType.diabetes:
+          final o = <String, dynamic>{};
+          final ac = _a1cCtrl.text.trim();
+          final kg = _weightKgCtrl.text.trim();
+          if (ac.isNotEmpty) o['a1cLevel'] = num.tryParse(ac);
+          if (kg.isNotEmpty) o['weightKg'] = num.tryParse(kg);
+          specJson = jsonEncode(o);
+          break;
+        default:
+          specJson = null;
+      }
+
+      final updated = await BackendApiClient.instance.patchDoctorAppointmentSession(
+        appointmentId: a.id,
+        doctorNotes: _sessionDoctorNotesCtrl.text.trim().isEmpty ? '' : _sessionDoctorNotesCtrl.text.trim(),
+        specializedDataJson: specJson,
+        requestedTests: _requestedTestsCtrl.text.trim().isEmpty ? '' : _requestedTestsCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _appointmentSnapshot = updated;
+        _applySpecializedJsonToControllers(updated.specializedDataJson);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Clinical visit data saved.')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _savingVisitFields = false);
+    }
   }
 
   Future<void> _bootstrap() async {
@@ -175,11 +267,33 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
       matches.sort((a, b) => b.createdAtUtc.compareTo(a.createdAtUtc));
       final latest = matches.isEmpty ? null : matches.first;
 
+      ApiPatient? profile;
+      try {
+        profile = await BackendApiClient.instance.getPatientById(a.patientId.trim());
+      } catch (_) {
+        profile = null;
+      }
+
+      ApiAppointment appt = a;
+      var uploads = <ApiMedicalFile>[];
+      if (a.id > 0) {
+        try {
+          appt = await BackendApiClient.instance.getAppointmentById(a.id);
+          uploads = await BackendApiClient.instance.getAppointmentPatientUploads(a.id);
+        } catch (_) {
+          uploads = [];
+        }
+      }
+
       if (!mounted) return;
       setState(() {
         _resolvedClinicId = doctorClinicId;
         _timeline = matches;
         _record = latest;
+        _patientProfile = profile;
+        _appointmentSnapshot = appt;
+        _requestedTestsCtrl.text = appt.requestedTests ?? '';
+        _patientUploads = uploads;
         _loading = false;
       });
     } catch (e) {
@@ -398,6 +512,18 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
     }
   }
 
+  Future<void> _openPatientMedicalFile(ApiMedicalFile f) async {
+    final url = BackendApiClient.instance.medicalFileUrl(f);
+    final uri = Uri.parse(url);
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open file')),
+      );
+    }
+  }
+
   List<ApiMedication> get _allMedications {
     final r = _record;
     if (r == null) return const [];
@@ -452,7 +578,7 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
   }
 
   Future<void> _onEndSession() async {
-    final a = widget.appointment;
+    final a = _appointmentSnapshot;
     if (a.id <= 0 || widget.readOnly || a.status != ApiAppointmentStatus.inProgress) return;
 
     final confirmed = await showDialog<bool>(
@@ -497,7 +623,7 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
 
   @override
   Widget build(BuildContext context) {
-    final a = widget.appointment;
+    final a = _appointmentSnapshot;
     final readOnly = widget.readOnly;
     final showNotesFab = !readOnly &&
         !_loading &&
@@ -518,7 +644,8 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
       bottomNavigationBar: showEndSession
           ? SafeArea(
               child: Material(
-                elevation: 10,
+                elevation: 4,
+                shadowColor: Colors.black.withValues(alpha: 0.08),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
                   child: FilledButton.icon(
@@ -558,6 +685,7 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
           tabs: const [
             Tab(text: 'Notes', icon: Icon(Icons.edit_note_outlined)),
             Tab(text: 'E-Prescription', icon: Icon(Icons.medication_outlined)),
+            Tab(text: 'Medication history', icon: Icon(Icons.history_outlined)),
             Tab(text: 'Files', icon: Icon(Icons.folder_outlined)),
           ],
         ),
@@ -607,6 +735,182 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
                           ),
                         ),
                       ),
+                    if (_patientProfile != null &&
+                        _patientProfile!.hasChronicCondition &&
+                        _patientProfile!.chronicDiseases.isNotEmpty)
+                      Material(
+                        color: Theme.of(context).colorScheme.errorContainer,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                color: Theme.of(context).colorScheme.onErrorContainer,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Chronic conditions on file',
+                                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                            color: Theme.of(context).colorScheme.onErrorContainer,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      _patientProfile!.chronicDiseases.join(' · '),
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                            color: Theme.of(context).colorScheme.onErrorContainer,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    if (!readOnly && a.id > 0)
+                      Padding(
+                        padding: Responsive.screenPadding(context).copyWith(top: 8, bottom: 8),
+                        child: Card(
+                          elevation: 0,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest
+                              .withValues(alpha: 0.65),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Visit clinical data',
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
+                                const SizedBox(height: 16),
+                                TextField(
+                                  controller: _sessionDoctorNotesCtrl,
+                                  maxLines: 3,
+                                  decoration: _medicationFieldDecoration(
+                                    Theme.of(context),
+                                    'Doctor notes (this session)',
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _requestedTestsCtrl,
+                                  maxLines: 3,
+                                  decoration: _medicationFieldDecoration(
+                                    Theme.of(context),
+                                    'Requested tests / labs (visible to patient)',
+                                    hint: 'e.g. CBC, metabolic panel, ultrasound',
+                                  ),
+                                ),
+                                if (a.type == ApiAppointmentType.pregnancyFollowUp) ...[
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _weeksCtrl,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                                    decoration: _medicationFieldDecoration(
+                                      Theme.of(context),
+                                      'Gestational age (weeks)',
+                                      hint: 'Optional',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _fetalHrCtrl,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                                    decoration: _medicationFieldDecoration(
+                                      Theme.of(context),
+                                      'Fetal heart rate (bpm)',
+                                      hint: 'Optional',
+                                    ),
+                                  ),
+                                ],
+                                if (a.type == ApiAppointmentType.diabetes) ...[
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _a1cCtrl,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    decoration: _medicationFieldDecoration(
+                                      Theme.of(context),
+                                      'HbA1c (%)',
+                                      hint: 'Optional',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _weightKgCtrl,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    decoration: _medicationFieldDecoration(
+                                      Theme.of(context),
+                                      'Weight (kg)',
+                                      hint: 'Optional',
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 16),
+                                FilledButton.icon(
+                                  onPressed: _savingVisitFields ? null : _saveVisitClinicalData,
+                                  icon: _savingVisitFields
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.save_outlined),
+                                  label: Text(_savingVisitFields ? 'Saving…' : 'Save clinical data'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (!readOnly &&
+                        a.doctorNotes != null &&
+                        a.doctorNotes!.trim().isNotEmpty)
+                      Material(
+                        color: const Color(0xFFE0F2F1),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.assignment_outlined, color: Color(0xFF004D40)),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Doctor notes (from booking)',
+                                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                            color: const Color(0xFF004D40),
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      a.doctorNotes!,
+                                      style: Theme.of(context).textTheme.bodyMedium,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     Expanded(
                       child: TabBarView(
                         controller: _tabController,
@@ -639,7 +943,6 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
       padding: const EdgeInsets.only(bottom: 12),
       child: Card(
         clipBehavior: Clip.antiAlias,
-        elevation: 0,
         color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -765,7 +1068,6 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
         const SizedBox(height: 16),
         if (_timeline.isEmpty)
           Card(
-            elevation: 0,
             color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -790,10 +1092,206 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
     );
   }
 
+  Future<void> _editAppointmentReminders() async {
+    final aid = _appointmentSnapshot.id;
+    if (aid <= 0 || widget.readOnly) return;
+
+    final existing = _appointmentSnapshot.appointmentPrescriptions;
+    final rows = <_RxRow>[];
+    if (existing.isEmpty) {
+      rows.add(_RxRow());
+    } else {
+      for (final e in existing) {
+        rows.add(
+          _RxRow(
+            name: TextEditingController(text: e.medicationName),
+            dosage: TextEditingController(text: e.dosage),
+            times: TextEditingController(text: '${e.timesPerDay}'),
+          ),
+        );
+      }
+    }
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (ctx) {
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(ctx).bottom,
+            ),
+            child: StatefulBuilder(
+              builder: (ctx, setModal) {
+                return SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Patient reminder schedule',
+                          style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Used by the patient app for local notifications (spread across the day by times per day).',
+                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                        const SizedBox(height: 16),
+                        for (var i = 0; i < rows.length; i++) ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: rows[i].name,
+                                  decoration: _medicationFieldDecoration(
+                                    Theme.of(ctx),
+                                    'Medication',
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: rows.length <= 1
+                                    ? null
+                                    : () {
+                                        final r = rows.removeAt(i);
+                                        r.dispose();
+                                        setModal(() {});
+                                      },
+                                icon: const Icon(Icons.remove_circle_outline),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: rows[i].dosage,
+                            decoration: _medicationFieldDecoration(
+                              Theme.of(ctx),
+                              'Dosage',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: rows[i].times,
+                            keyboardType: TextInputType.number,
+                            decoration: _medicationFieldDecoration(
+                              Theme.of(ctx),
+                              'Times per day',
+                              hint: '1–24',
+                            ),
+                          ),
+                          const Divider(height: 24),
+                        ],
+                        TextButton.icon(
+                          onPressed: () {
+                            rows.add(_RxRow());
+                            setModal(() {});
+                          },
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add medication line'),
+                        ),
+                        const SizedBox(height: 8),
+                        FilledButton(
+                          onPressed: () async {
+                            final start = DateTime.now().toUtc();
+                            final lines = <Map<String, dynamic>>[];
+                            for (final r in rows) {
+                              final n = r.name.text.trim();
+                              if (n.isEmpty) continue;
+                              final t = int.tryParse(r.times.text.trim()) ?? 1;
+                              lines.add(<String, dynamic>{
+                                'medicationName': n,
+                                'dosage': r.dosage.text.trim(),
+                                'timesPerDay': t.clamp(1, 24),
+                                'startDateUtc': start.toIso8601String(),
+                                'endDateUtc': null,
+                              });
+                            }
+                            try {
+                              final updated =
+                                  await BackendApiClient.instance.replaceAppointmentPrescriptions(
+                                appointmentId: aid,
+                                lines: lines,
+                              );
+                              if (!ctx.mounted) return;
+                              Navigator.pop(ctx);
+                              if (!mounted) return;
+                              setState(() => _appointmentSnapshot = updated);
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Reminder schedule saved.'),
+                                ),
+                              );
+                            } catch (e) {
+                              if (!ctx.mounted) return;
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(content: Text('$e')),
+                              );
+                            }
+                          },
+                          child: const Text('Save'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      );
+    } finally {
+      for (final r in rows) {
+        r.dispose();
+      }
+    }
+  }
+
   Widget _rxTab(BuildContext context) {
     final meds = _allMedications;
+    final aid = _appointmentSnapshot.id;
     return Column(
       children: [
+        if (aid > 0 && !widget.readOnly)
+          Padding(
+            padding: Responsive.screenPadding(context).copyWith(top: 8, bottom: 8),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Patient app reminders',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF004D40),
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${_appointmentSnapshot.appointmentPrescriptions.length} active line(s). '
+                      'These power on-device dose reminders for the patient.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(height: 10),
+                    FilledButton.tonal(
+                      onPressed: _editAppointmentReminders,
+                      child: const Text('Edit reminder medications'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         if (!widget.readOnly)
           Padding(
             padding: Responsive.screenPadding(context).copyWith(top: 12, bottom: 8),
@@ -858,14 +1356,50 @@ class _DoctorPatientSessionScreenState extends State<DoctorPatientSessionScreen>
 
   Widget _filesTab(BuildContext context) {
     final files = _record?.attachments ?? const <ApiFileAttachment>[];
+    final apptId = _appointmentSnapshot.id;
     return Column(
       children: [
+        if (apptId > 0 && _patientUploads.isNotEmpty) ...[
+          Padding(
+            padding: Responsive.screenPadding(context).copyWith(top: 12, bottom: 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Patient attachments (this visit)',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF004D40),
+                    ),
+              ),
+            ),
+          ),
+          for (final f in _patientUploads) ...[
+            Padding(
+              padding: Responsive.screenPadding(context).copyWith(top: 0, bottom: 8),
+              child: Card(
+                child: ListTile(
+                  leading: Icon(
+                    f.fileType.toLowerCase().contains('pdf') ||
+                            f.fileName.toLowerCase().endsWith('.pdf')
+                        ? Icons.picture_as_pdf
+                        : Icons.image_outlined,
+                  ),
+                  title: Text(f.fileName),
+                  subtitle: const Text('Uploaded by patient'),
+                  trailing: const Icon(Icons.open_in_new),
+                  onTap: () => _openPatientMedicalFile(f),
+                ),
+              ),
+            ),
+          ],
+          const Divider(height: 24),
+        ],
         Padding(
           padding: Responsive.screenPadding(context).copyWith(top: 12, bottom: 8),
           child: Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'X-rays (images) and lab results (PDF).',
+              'Clinic files (visit record): X-rays and lab PDFs.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -1279,8 +1813,8 @@ class _AddMedicationFormSheetState extends State<_AddMedicationFormSheet> {
                 return Align(
                   alignment: Alignment.topLeft,
                   child: Material(
-                    elevation: 8,
-                    shadowColor: theme.colorScheme.shadow,
+                    elevation: 3,
+                    shadowColor: Colors.black.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
                     color: theme.colorScheme.surfaceContainerHigh,
                     child: ConstrainedBox(
@@ -1362,5 +1896,25 @@ class _AddMedicationFormSheetState extends State<_AddMedicationFormSheet> {
         ),
       ),
     );
+  }
+}
+
+class _RxRow {
+  _RxRow({
+    TextEditingController? name,
+    TextEditingController? dosage,
+    TextEditingController? times,
+  })  : name = name ?? TextEditingController(),
+        dosage = dosage ?? TextEditingController(),
+        times = times ?? TextEditingController(text: '3');
+
+  final TextEditingController name;
+  final TextEditingController dosage;
+  final TextEditingController times;
+
+  void dispose() {
+    name.dispose();
+    dosage.dispose();
+    times.dispose();
   }
 }

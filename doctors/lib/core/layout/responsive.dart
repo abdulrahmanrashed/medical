@@ -1,8 +1,14 @@
 import 'package:flutter/widgets.dart';
 
 abstract final class Responsive {
+  /// Material “medium” breakpoint — persistent rail + master layouts start here.
+  static const double breakpointMasterLayout = 600;
+
   static const double breakpointTablet = 768;
   static const double breakpointLarge = 1100;
+
+  /// Sidebar / navigation rail + split master–detail layouts (width ≥ 600dp).
+  static bool useMasterLayout(double width) => width >= breakpointMasterLayout;
 
   static bool isTablet(double width) => width >= breakpointTablet;
 

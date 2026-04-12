@@ -5,17 +5,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/formatting/appointment_time_display.dart';
+import '../../core/layout/adaptive_sheet.dart';
 import '../../core/models/backend_models.dart';
 import '../../core/network/backend_api_client.dart';
 import '../../core/network/session_manager.dart';
+import '../../core/theme/teal_modern_style.dart';
 import 'reception_dashboard_controller.dart';
 
 Future<void> showReceptionAddAppointmentSheet(BuildContext parentContext) {
-  return showModalBottomSheet<void>(
+  return showAdaptiveSheet<void>(
     context: parentContext,
-    isScrollControlled: true,
-    showDragHandle: true,
-    useSafeArea: true,
+    maxWidth: 640,
     builder: (ctx) {
       final bottom = MediaQuery.viewInsetsOf(ctx).bottom;
       return Padding(
@@ -46,7 +46,8 @@ class _AddAppointmentFormState extends State<_AddAppointmentForm> {
   final _formKey = GlobalKey<FormState>();
   final _phoneCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
-  final _notesCtrl = TextEditingController();
+  final _doctorNotesCtrl = TextEditingController();
+  final _receptionNotesCtrl = TextEditingController();
 
   Timer? _phoneDebounce;
   bool _lookupLoading = false;
@@ -79,7 +80,8 @@ class _AddAppointmentFormState extends State<_AddAppointmentForm> {
     _phoneDebounce?.cancel();
     _phoneCtrl.dispose();
     _nameCtrl.dispose();
-    _notesCtrl.dispose();
+    _doctorNotesCtrl.dispose();
+    _receptionNotesCtrl.dispose();
     super.dispose();
   }
 
@@ -214,7 +216,10 @@ class _AddAppointmentFormState extends State<_AddAppointmentForm> {
         phoneNumber: phone,
         scheduledAtUtc: schedule.toUtc(),
         type: _type,
-        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        doctorNotes:
+            _doctorNotesCtrl.text.trim().isEmpty ? null : _doctorNotesCtrl.text.trim(),
+        receptionNotes:
+            _receptionNotesCtrl.text.trim().isEmpty ? null : _receptionNotesCtrl.text.trim(),
       );
 
       if (!mounted) return;
@@ -322,12 +327,26 @@ class _AddAppointmentFormState extends State<_AddAppointmentForm> {
                   label: Text('Doctor'),
                   icon: Icon(Icons.person_outline),
                 ),
+                ButtonSegment(
+                  value: ApiAppointmentType.pregnancyFollowUp,
+                  label: Text('Pregnancy'),
+                  icon: Icon(Icons.pregnant_woman_outlined),
+                ),
+                ButtonSegment(
+                  value: ApiAppointmentType.diabetes,
+                  label: Text('Diabetes'),
+                  icon: Icon(Icons.bloodtype_outlined),
+                ),
               ],
               selected: {_type},
               onSelectionChanged: (s) {
                 setState(() {
                   _type = s.first;
-                  if (_type == ApiAppointmentType.general) _doctorId = null;
+                  if (_type == ApiAppointmentType.general ||
+                      _type == ApiAppointmentType.pregnancyFollowUp ||
+                      _type == ApiAppointmentType.diabetes) {
+                    _doctorId = null;
+                  }
                 });
               },
             ),
@@ -375,29 +394,29 @@ class _AddAppointmentFormState extends State<_AddAppointmentForm> {
               onTap: _pickSchedule,
             ),
             TextFormField(
-              controller: _notesCtrl,
+              controller: _doctorNotesCtrl,
               maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Notes (optional)',
-                hintText: 'e.g. Patient arrived — checked in at desk',
-                border: OutlineInputBorder(),
+              decoration: TealModernStyle.inputDecoration(
+                context,
+                labelText: 'Doctor notes (optional)',
+                hintText: 'Visible to the doctor during the visit',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _receptionNotesCtrl,
+              maxLines: 2,
+              decoration: TealModernStyle.inputDecoration(
+                context,
+                labelText: 'Reception notes (optional)',
+                hintText: 'Internal — reception staff only',
               ),
             ),
             const SizedBox(height: 20),
-            FilledButton(
+            TealModernStyle.primaryButton(
               onPressed: _submitting ? null : _submit,
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF004D40),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: _submitting
-                  ? const SizedBox(
-                      height: 22,
-                      width: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
-                    )
-                  : const Text('Create appointment'),
+              loading: _submitting,
+              child: const Text('Create appointment'),
             ),
           ],
         ),

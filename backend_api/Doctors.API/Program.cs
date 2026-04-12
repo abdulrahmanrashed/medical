@@ -1,3 +1,4 @@
+using Doctors.API.Hubs;
 using Doctors.API.Middleware;
 using Doctors.API.Services;
 using Doctors.Application;
@@ -8,6 +9,7 @@ using Doctors.Infrastructure.Persistence;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.OpenApi.Models;
 using System.Text.Json.Serialization;
 
@@ -16,6 +18,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://0.0.0.0:5191");
 
 builder.Services.AddApplication();
+builder.Services.RemoveAll<IAppointmentRealtimeNotifier>();
+builder.Services.AddScoped<IAppointmentRealtimeNotifier, AppointmentRealtimeNotifier>();
+builder.Services.AddSignalR();
 builder.Services.Configure<AppUrlOptions>(builder.Configuration.GetSection(AppUrlOptions.SectionName));
 builder.Services.AddInfrastructure(builder.Configuration);
 
@@ -100,5 +105,6 @@ app.UseMiddleware<ClinicSuspensionMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<AppointmentsHub>("/hubs/appointments");
 
 app.Run();

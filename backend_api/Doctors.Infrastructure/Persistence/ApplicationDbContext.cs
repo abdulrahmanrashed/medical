@@ -3,6 +3,7 @@ using Doctors.Domain.Entities;
 using Doctors.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Doctors.Infrastructure.Persistence;
 
@@ -25,6 +26,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Medication> Medications => Set<Medication>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<FileAttachment> FileAttachments => Set<FileAttachment>();
+    public DbSet<AppointmentPrescription> AppointmentPrescriptions => Set<AppointmentPrescription>();
+    public DbSet<MedicalFile> MedicalFiles => Set<MedicalFile>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -48,6 +51,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(p => p.UserId)
                 .IsUnique()
                 .HasFilter("[UserId] IS NOT NULL");
+            e.Property(p => p.ChronicDiseases)
+                .HasConversion(ChronicDiseasesValueConverter.Create())
+                .Metadata.SetValueComparer(
+                    new ValueComparer<List<string>>(
+                        (a, b) => (a ?? new List<string>()).SequenceEqual(b ?? new List<string>()),
+                        v => v.Aggregate(0, (h, x) => HashCode.Combine(h, x.GetHashCode(StringComparison.Ordinal))),
+                        v => v.ToList()));
             e.Property(p => p.RegistrationStatus)
                 .HasMaxLength(20)
                 .HasConversion(
@@ -74,6 +84,24 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .WithMany(d => d.Appointments)
             .HasForeignKey(a => a.DoctorId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<AppointmentPrescription>()
+            .HasOne(p => p.Appointment)
+            .WithMany(a => a.AppointmentPrescriptions)
+            .HasForeignKey(p => p.AppointmentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<MedicalFile>()
+            .HasOne(f => f.Patient)
+            .WithMany(p => p.MedicalFiles)
+            .HasForeignKey(f => f.PatientId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<MedicalFile>()
+            .HasOne(f => f.Appointment)
+            .WithMany()
+            .HasForeignKey(f => f.AppointmentId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.Entity<MedicalRecord>()
             .HasOne(r => r.Patient)

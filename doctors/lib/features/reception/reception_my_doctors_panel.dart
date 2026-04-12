@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/enums/doctor_specialization.dart';
+import '../../core/layout/adaptive_sheet.dart';
 import '../../core/layout/responsive.dart';
 import '../../core/network/backend_api_client.dart';
 import '../../core/network/session_manager.dart';
 import '../clinic_owner/clinic_owner_ui.dart';
-
-const Color _kPrimary = Color(0xFF004D40);
 
 String _doctorFullName(Map<String, dynamic> d) {
   final n = '${d['firstName'] ?? ''} ${d['lastName'] ?? ''}'.trim();
@@ -27,12 +26,6 @@ IconData _genderIcon(String? gender) {
   if (s == 'female') return Icons.female;
   if (s == 'male') return Icons.male;
   return Icons.transgender_outlined;
-}
-
-String _genderLabel(Map<String, dynamic> d) {
-  final g = d['gender']?.toString().trim();
-  if (g == null || g.isEmpty) return '—';
-  return g;
 }
 
 Future<void> _launchTel(String? raw) async {
@@ -67,7 +60,7 @@ class _DoctorCard extends StatelessWidget {
 
     final titleColor = frozen ? Colors.grey.shade700 : theme.colorScheme.onSurface;
     final bodyColor = frozen ? Colors.grey.shade600 : theme.colorScheme.onSurfaceVariant;
-    final iconColor = frozen ? Colors.grey.shade600 : _kPrimary.withValues(alpha: 0.85);
+    final iconColor = frozen ? Colors.grey.shade600 : ClinicOwnerUi.primary.withValues(alpha: 0.85);
 
     final inner = Padding(
         padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
@@ -94,9 +87,9 @@ class _DoctorCard extends StatelessWidget {
                   label: Text(frozen ? 'Frozen' : 'Active'),
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(horizontal: 6),
-                  backgroundColor: frozen ? Colors.grey.shade600 : _kPrimary.withValues(alpha: 0.12),
+                  backgroundColor: frozen ? Colors.grey.shade600 : ClinicOwnerUi.primary.withValues(alpha: 0.12),
                   labelStyle: TextStyle(
-                    color: frozen ? Colors.white : _kPrimary,
+                    color: frozen ? Colors.white : ClinicOwnerUi.primary,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -149,10 +142,10 @@ class _DoctorCard extends StatelessWidget {
                               child: Text(
                                 phone,
                                 style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: frozen ? Colors.grey.shade700 : _kPrimary,
+                                  color: frozen ? Colors.grey.shade700 : ClinicOwnerUi.primary,
                                   fontWeight: FontWeight.w600,
                                   decoration: TextDecoration.underline,
-                                  decorationColor: frozen ? Colors.grey.shade600 : _kPrimary,
+                                  decorationColor: frozen ? Colors.grey.shade600 : ClinicOwnerUi.primary,
                                 ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
@@ -201,7 +194,6 @@ class _DoctorCard extends StatelessWidget {
     }
 
     return Card(
-      elevation: 0,
       color: frozen ? const Color(0xFFE8E8E8) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
@@ -238,40 +230,6 @@ class _CardDetailLine extends StatelessWidget {
   }
 }
 
-class _TabletPhoneCell extends StatelessWidget {
-  const _TabletPhoneCell({this.phone});
-
-  final String? phone;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = phone?.trim();
-    if (p == null || p.isEmpty) return const Text('—');
-    return InkWell(
-      onTap: () => _launchTel(p),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.call, size: 16, color: _kPrimary.withValues(alpha: 0.85)),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              p,
-              style: TextStyle(
-                color: _kPrimary,
-                fontWeight: FontWeight.w600,
-                decoration: TextDecoration.underline,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Use the [BuildContext] from the screen that owns the FAB (e.g. [Scaffold]), not a [GlobalKey].
 Future<void> showReceptionAddDoctorSheet(
   BuildContext anchorContext, {
@@ -287,11 +245,9 @@ Future<void> showReceptionAddDoctorSheet(
     return;
   }
 
-  final ok = await showModalBottomSheet<bool>(
+  final ok = await showAdaptiveSheet<bool>(
     context: anchorContext,
-    isScrollControlled: true,
-    showDragHandle: true,
-    useSafeArea: true,
+    maxWidth: 560,
     builder: (ctx) => _AddDoctorFormSheet(clinicId: clinicId),
   );
 
@@ -325,7 +281,7 @@ class _AddDoctorFormSheetState extends State<_AddDoctorFormSheet> {
   String? _gender;
   bool _submitting = false;
 
-  static const _genders = ['Male', 'Female', 'Other', 'Prefer not to say'];
+  static const _genders = ['Male', 'Female'];
 
   @override
   void initState() {
@@ -504,7 +460,7 @@ class _AddDoctorFormSheetState extends State<_AddDoctorFormSheet> {
               ),
               const SizedBox(height: 20),
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: _kPrimary),
+                style: FilledButton.styleFrom(backgroundColor: ClinicOwnerUi.primary),
                 onPressed: _submitting ? null : _submit,
                 child: _submitting
                     ? const SizedBox(
@@ -542,6 +498,9 @@ class ReceptionMyDoctorsPanel extends StatefulWidget {
 class _ReceptionMyDoctorsPanelState extends State<ReceptionMyDoctorsPanel> {
   late Future<List<Map<String, dynamic>>> _future;
 
+  /// Master–detail selection on wide layouts; defaults to first doctor in the list.
+  int? _selectedDoctorIndex;
+
   int? get _clinicId => SessionManager.instance.assignedClinicId;
 
   @override
@@ -563,7 +522,10 @@ class _ReceptionMyDoctorsPanelState extends State<ReceptionMyDoctorsPanel> {
   }
 
   Future<void> _reload() async {
-    setState(() => _future = _load());
+    setState(() {
+      _future = _load();
+      _selectedDoctorIndex = null;
+    });
     await _future;
   }
 
@@ -633,7 +595,113 @@ class _ReceptionMyDoctorsPanelState extends State<ReceptionMyDoctorsPanel> {
 
           return LayoutBuilder(
             builder: (context, constraints) {
-              final tablet = Responsive.isTablet(constraints.maxWidth);
+              final master = Responsive.useMasterLayout(constraints.maxWidth) && items.isNotEmpty;
+
+              final header = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!widget.useClinicOwnerLayout) ...[
+                    Text(
+                      'My Doctors',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  Text(
+                    'Clinic ID $clinicId · ${items.length} doctors',
+                    style: widget.useClinicOwnerLayout
+                        ? Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: ClinicOwnerUi.onSurfaceTitle,
+                            )
+                        : Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                  ),
+                ],
+              );
+
+              if (master) {
+                final selectedIdx = (_selectedDoctorIndex ?? 0).clamp(0, items.length - 1);
+                final d = items[selectedIdx];
+                final frozen = d['isActive'] == false;
+                final listBg = widget.useClinicOwnerLayout
+                    ? ClinicOwnerUi.surface
+                    : Theme.of(context).colorScheme.surface;
+
+                return RefreshIndicator(
+                  onRefresh: () async => _reload(),
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverPadding(
+                        padding: padding,
+                        sliver: SliverToBoxAdapter(child: header),
+                      ),
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(
+                              width: 300,
+                              child: ColoredBox(
+                                color: listBg,
+                                child: ListView.separated(
+                                  padding: const EdgeInsets.only(right: 4),
+                                  itemCount: items.length,
+                                  separatorBuilder: (context, index) => const Divider(height: 1),
+                                  itemBuilder: (context, i) {
+                                    final doc = items[i];
+                                    final f = doc['isActive'] == false;
+                                    final sel = i == selectedIdx;
+                                    final spec = doc['specialization']?.toString().trim();
+                                    return ListTile(
+                                      selected: sel,
+                                      title: Text(
+                                        _doctorFullName(doc),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      subtitle: Text(
+                                        (spec == null || spec.isEmpty) ? '—' : spec,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      trailing: Icon(
+                                        f ? Icons.ac_unit : Icons.check_circle_outline,
+                                        size: 20,
+                                        color: f ? Colors.grey.shade600 : ClinicOwnerUi.primary,
+                                      ),
+                                      onTap: () => setState(() => _selectedDoctorIndex = i),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                            const VerticalDivider(width: 1),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                padding: padding.copyWith(top: 0),
+                                child: _DoctorCard(
+                                  d: d,
+                                  frozen: frozen,
+                                  premiumStyle: widget.useClinicOwnerLayout,
+                                  onToggleActive: (v) => _setDoctorActive(d, v),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SliverToBoxAdapter(child: SizedBox(height: 88)),
+                    ],
+                  ),
+                );
+              }
+
               return RefreshIndicator(
                 onRefresh: () async => _reload(),
                 child: CustomScrollView(
@@ -641,201 +709,36 @@ class _ReceptionMyDoctorsPanelState extends State<ReceptionMyDoctorsPanel> {
                   slivers: [
                     SliverPadding(
                       padding: padding,
-                      sliver: SliverToBoxAdapter(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (!widget.useClinicOwnerLayout) ...[
-                              Text(
-                                'My Doctors',
-                                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                    ),
+                      sliver: SliverToBoxAdapter(child: header),
+                    ),
+                    SliverPadding(
+                      padding: padding.copyWith(top: 8),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) {
+                            if (items.isEmpty) {
+                              return const Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Text('No doctors yet. Tap + Add doctor.'),
+                              );
+                            }
+                            final doc = items[i];
+                            final fr = doc['isActive'] == false;
+                            final narrow = MediaQuery.sizeOf(context).width < Responsive.breakpointMasterLayout;
+                            return Padding(
+                              padding: EdgeInsets.only(bottom: narrow ? 16 : 12),
+                              child: _DoctorCard(
+                                d: doc,
+                                frozen: fr,
+                                premiumStyle: widget.useClinicOwnerLayout,
+                                onToggleActive: (v) => _setDoctorActive(doc, v),
                               ),
-                              const SizedBox(height: 4),
-                            ],
-                            Text(
-                              'Clinic ID $clinicId · ${items.length} doctors',
-                              style: widget.useClinicOwnerLayout
-                                  ? Theme.of(context).textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: ClinicOwnerUi.onSurfaceTitle,
-                                      )
-                                  : Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      ),
-                            ),
-                          ],
+                            );
+                          },
+                          childCount: items.isEmpty ? 1 : items.length,
                         ),
                       ),
                     ),
-                    if (tablet && items.isNotEmpty && widget.useClinicOwnerLayout)
-                      SliverPadding(
-                        padding: padding.copyWith(top: 8),
-                        sliver: SliverGrid(
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: Responsive.gridColumnCount(constraints.maxWidth),
-                            mainAxisSpacing: 14,
-                            crossAxisSpacing: 14,
-                            childAspectRatio: 0.72,
-                          ),
-                          delegate: SliverChildBuilderDelegate(
-                            (context, i) {
-                              final d = items[i];
-                              final frozen = d['isActive'] == false;
-                              return _DoctorCard(
-                                d: d,
-                                frozen: frozen,
-                                premiumStyle: true,
-                                onToggleActive: (v) => _setDoctorActive(d, v),
-                              );
-                            },
-                            childCount: items.length,
-                          ),
-                        ),
-                      )
-                    else if (tablet && items.isNotEmpty)
-                      SliverPadding(
-                        padding: padding.copyWith(top: 0),
-                        sliver: SliverToBoxAdapter(
-                          child: Card(
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: DataTable(
-                                columnSpacing: 16,
-                                columns: const [
-                                  DataColumn(label: Text('Name')),
-                                  DataColumn(label: Text('Status')),
-                                  DataColumn(label: Text('Specialization')),
-                                  DataColumn(label: Text('Experience')),
-                                  DataColumn(label: Text('Phone')),
-                                  DataColumn(label: Text('Gender')),
-                                  DataColumn(label: Text('Email')),
-                                  DataColumn(label: Text('Active')),
-                                ],
-                                rows: [
-                                  for (final d in items)
-                                    DataRow(
-                                      color: (d['isActive'] == false)
-                                          ? WidgetStateProperty.all(Colors.grey.shade100)
-                                          : null,
-                                      cells: [
-                                        DataCell(
-                                          ConstrainedBox(
-                                            constraints: const BoxConstraints(maxWidth: 160),
-                                            child: Text(
-                                              _doctorFullName(d),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ),
-                                        DataCell(
-                                          Chip(
-                                            label: Text(d['isActive'] == false ? 'Frozen' : 'Active'),
-                                            visualDensity: VisualDensity.compact,
-                                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                                            backgroundColor: d['isActive'] == false
-                                                ? Colors.grey.shade500
-                                                : _kPrimary.withValues(alpha: 0.12),
-                                            labelStyle: TextStyle(
-                                              color: d['isActive'] == false ? Colors.white : _kPrimary,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ),
-                                        DataCell(
-                                          ConstrainedBox(
-                                            constraints: const BoxConstraints(maxWidth: 140),
-                                            child: Text(
-                                              d['specialization']?.toString() ?? '—',
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ),
-                                        DataCell(Text(_yearsOfExpLabel(d))),
-                                        DataCell(
-                                          ConstrainedBox(
-                                            constraints: const BoxConstraints(maxWidth: 148),
-                                            child: _TabletPhoneCell(phone: d['phoneNumber']?.toString()),
-                                          ),
-                                        ),
-                                        DataCell(
-                                          ConstrainedBox(
-                                            constraints: const BoxConstraints(maxWidth: 120),
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  _genderIcon(d['gender']?.toString()),
-                                                  size: 18,
-                                                  color: Colors.grey.shade700,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Expanded(
-                                                  child: Text(
-                                                    _genderLabel(d),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                        DataCell(
-                                          ConstrainedBox(
-                                            constraints: const BoxConstraints(maxWidth: 200),
-                                            child: Text(
-                                              d['email']?.toString() ?? '—',
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ),
-                                        DataCell(
-                                          Switch.adaptive(
-                                            value: d['isActive'] != false,
-                                            onChanged: (v) => _setDoctorActive(d, v),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      )
-                    else
-                      SliverPadding(
-                        padding: padding.copyWith(top: 8),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, i) {
-                              if (items.isEmpty) {
-                                return const Padding(
-                                  padding: EdgeInsets.all(24),
-                                  child: Text('No doctors yet. Tap + Add doctor.'),
-                                );
-                              }
-                              final d = items[i];
-                              final frozen = d['isActive'] == false;
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _DoctorCard(
-                                  d: d,
-                                  frozen: frozen,
-                                  premiumStyle: widget.useClinicOwnerLayout,
-                                  onToggleActive: (v) => _setDoctorActive(d, v),
-                                ),
-                              );
-                            },
-                            childCount: items.isEmpty ? 1 : items.length,
-                          ),
-                        ),
-                      ),
                     const SliverToBoxAdapter(child: SizedBox(height: 88)),
                   ],
                 ),

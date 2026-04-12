@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Doctors.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260408195606_DoctorWorkSchedules")]
-    partial class DoctorWorkSchedules
+    [Migration("20260412092725_InitialRefactorWithSpecialties")]
+    partial class InitialRefactorWithSpecialties
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -42,6 +42,9 @@ namespace Doctors.Infrastructure.Migrations
                     b.Property<int?>("DoctorId")
                         .HasColumnType("int");
 
+                    b.Property<string>("DoctorNotes")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
@@ -56,8 +59,14 @@ namespace Doctors.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ReceptionNotes")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("ScheduledAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("SpecializedDataJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -440,6 +449,7 @@ namespace Doctors.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ChronicDiseases")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAtUtc")
@@ -454,6 +464,9 @@ namespace Doctors.Infrastructure.Migrations
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("HasChronicCondition")
+                        .HasColumnType("bit");
 
                     b.Property<string>("InsuranceDetails")
                         .HasColumnType("nvarchar(max)");

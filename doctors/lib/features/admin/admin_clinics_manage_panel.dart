@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/layout/adaptive_sheet.dart';
 import '../../core/layout/responsive.dart';
 import '../../core/network/backend_api_client.dart';
 
@@ -66,11 +67,9 @@ Future<void> showAddClinicSheet(
   BuildContext anchorContext, {
   required Future<void> Function() onSuccess,
 }) async {
-  final ok = await showModalBottomSheet<bool>(
+  final ok = await showAdaptiveSheet<bool>(
     context: anchorContext,
-    isScrollControlled: true,
-    showDragHandle: true,
-    useSafeArea: true,
+    maxWidth: 560,
     builder: (ctx) => const _AddClinicFormSheet(),
   );
 
@@ -87,11 +86,9 @@ Future<void> showEditPaymentSheet(
   required Map<String, dynamic> clinic,
   required Future<void> Function() onSuccess,
 }) async {
-  final ok = await showModalBottomSheet<bool>(
+  final ok = await showAdaptiveSheet<bool>(
     context: anchorContext,
-    isScrollControlled: true,
-    showDragHandle: true,
-    useSafeArea: true,
+    maxWidth: 480,
     builder: (ctx) => _EditPaymentSheet(clinic: clinic),
   );
   if (ok == true && anchorContext.mounted) {
@@ -510,6 +507,8 @@ class AdminClinicsManagePanelState extends State<AdminClinicsManagePanel> {
   late Future<List<Map<String, dynamic>>> _future;
   final _searchController = TextEditingController();
 
+  int? _selectedClinicIndex;
+
   @override
   void initState() {
     super.initState();
@@ -536,6 +535,7 @@ class AdminClinicsManagePanelState extends State<AdminClinicsManagePanel> {
   Future<void> reload() async {
     setState(() {
       _future = _load();
+      _selectedClinicIndex = null;
     });
     await _future;
   }
@@ -605,7 +605,110 @@ class AdminClinicsManagePanelState extends State<AdminClinicsManagePanel> {
           final items = snap.data ?? const <Map<String, dynamic>>[];
           return LayoutBuilder(
             builder: (context, constraints) {
-              final tablet = Responsive.isTablet(constraints.maxWidth);
+              final master = Responsive.useMasterLayout(constraints.maxWidth) && items.isNotEmpty;
+              final header = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: _searchController,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) {
+                      FocusScope.of(context).unfocus();
+                      reload();
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search clinics by name',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Clinics',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF1A1A1A),
+                        ),
+                  ),
+                ],
+              );
+
+              if (master) {
+                final idx = (_selectedClinicIndex ?? 0).clamp(0, items.length - 1);
+                final c = items[idx];
+                return RefreshIndicator(
+                  onRefresh: () async => reload(),
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverPadding(
+                        padding: padding,
+                        sliver: SliverToBoxAdapter(child: header),
+                      ),
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(
+                              width: 300,
+                              child: ColoredBox(
+                                color: _kSurface,
+                                child: ListView.separated(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  itemCount: items.length,
+                                  separatorBuilder: (context, index) => const Divider(height: 1),
+                                  itemBuilder: (context, i) {
+                                    final clinic = items[i];
+                                    final alert = _isClinicBillingAlert(clinic);
+                                    final sel = i == idx;
+                                    return ListTile(
+                                      selected: sel,
+                                      title: Text(
+                                        clinic['name']?.toString() ?? '—',
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      subtitle: Text(
+                                        _clinicOwnerEmail(clinic) ?? '',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      trailing: alert
+                                          ? Icon(Icons.warning_amber_rounded, color: Colors.red.shade700, size: 20)
+                                          : const Icon(Icons.chevron_right, size: 20),
+                                      onTap: () => setState(() => _selectedClinicIndex = i),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                            const VerticalDivider(width: 1),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                padding: padding.copyWith(top: 0),
+                                child: _ClinicAdminCard(
+                                  data: c,
+                                  onDelete: () => _confirmDelete(c),
+                                  onPaymentUpdated: reload,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SliverToBoxAdapter(child: SizedBox(height: 88)),
+                    ],
+                  ),
+                );
+              }
+
               return RefreshIndicator(
                 onRefresh: () async => reload(),
                 child: CustomScrollView(
@@ -613,149 +716,33 @@ class AdminClinicsManagePanelState extends State<AdminClinicsManagePanel> {
                   slivers: [
                     SliverPadding(
                       padding: padding,
-                      sliver: SliverToBoxAdapter(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            TextField(
-                              controller: _searchController,
-                              textInputAction: TextInputAction.search,
-                              onSubmitted: (_) {
-                                FocusScope.of(context).unfocus();
-                                reload();
-                              },
-                              decoration: InputDecoration(
-                                hintText: 'Search clinics by name',
-                                prefixIcon: const Icon(Icons.search),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                filled: true,
-                                fillColor: Colors.white,
-                                isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      sliver: SliverToBoxAdapter(child: header),
+                    ),
+                    SliverPadding(
+                      padding: padding.copyWith(top: 8),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) {
+                            if (items.isEmpty) {
+                              return const Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Text('No clinics yet. Tap + to add one.'),
+                              );
+                            }
+                            final clinic = items[i];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _ClinicAdminCard(
+                                data: clinic,
+                                onDelete: () => _confirmDelete(clinic),
+                                onPaymentUpdated: reload,
                               ),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Clinics',
-                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    color: const Color(0xFF1A1A1A),
-                                  ),
-                            ),
-                          ],
+                            );
+                          },
+                          childCount: items.isEmpty ? 1 : items.length,
                         ),
                       ),
                     ),
-                    if (tablet && items.isNotEmpty)
-                      SliverPadding(
-                        padding: padding.copyWith(top: 0),
-                        sliver: SliverToBoxAdapter(
-                          child: Card(
-                            clipBehavior: Clip.antiAlias,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: DataTable(
-                                columns: const [
-                                  DataColumn(label: Text('Name')),
-                                  DataColumn(label: Text('Owner')),
-                                  DataColumn(label: Text('Remaining')),
-                                  DataColumn(label: Text('Expires')),
-                                  DataColumn(label: Text('Phone')),
-                                  DataColumn(label: Text('Clinic email')),
-                                  DataColumn(label: Text('Doctors')),
-                                  DataColumn(label: Text('Active')),
-                                  DataColumn(label: Text('')),
-                                ],
-                                rows: [
-                                  for (final c in items)
-                                    DataRow(
-                                      color: _isClinicBillingAlert(c)
-                                          ? WidgetStateProperty.all(Colors.red.shade50)
-                                          : null,
-                                      cells: [
-                                        DataCell(Text(c['name']?.toString() ?? '-')),
-                                        DataCell(
-                                          _OwnerTableCell(
-                                            name: _clinicOwnerFullName(c),
-                                            email: _clinicOwnerEmail(c),
-                                          ),
-                                        ),
-                                        DataCell(Text(_formatMoney(c['remainingAmount']))),
-                                        DataCell(
-                                          Text(
-                                            _parseJsonDate(c['subscriptionEndDate']) == null
-                                                ? '—'
-                                                : DateFormat.yMMMd().format(
-                                                    _parseJsonDate(c['subscriptionEndDate'])!.toLocal(),
-                                                  ),
-                                          ),
-                                        ),
-                                        DataCell(Text(c['phone']?.toString() ?? '—')),
-                                        DataCell(Text(c['email']?.toString() ?? '—')),
-                                        DataCell(Text('${c['doctorCount'] ?? 0}')),
-                                        DataCell(
-                                          _ClinicPaymentSwitch(
-                                            clinicId: (c['id'] as num).toInt(),
-                                            isPaid: _clinicSwitchIsPaid(c),
-                                            onUpdated: reload,
-                                          ),
-                                        ),
-                                        DataCell(
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              IconButton(
-                                                tooltip: 'Edit payment',
-                                                icon: const Icon(Icons.edit_calendar_outlined),
-                                                onPressed: () => showEditPaymentSheet(
-                                                  context,
-                                                  clinic: c,
-                                                  onSuccess: reload,
-                                                ),
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(Icons.delete_outline),
-                                                onPressed: () => _confirmDelete(c),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      )
-                    else
-                      SliverPadding(
-                        padding: padding.copyWith(top: 8),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, i) {
-                              if (items.isEmpty) {
-                                return const Padding(
-                                  padding: EdgeInsets.all(24),
-                                  child: Text('No clinics yet. Tap + to add one.'),
-                                );
-                              }
-                              final c = items[i];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _ClinicAdminCard(
-                                  data: c,
-                                  onDelete: () => _confirmDelete(c),
-                                  onPaymentUpdated: reload,
-                                ),
-                              );
-                            },
-                            childCount: items.isEmpty ? 1 : items.length,
-                          ),
-                        ),
-                      ),
                     const SliverToBoxAdapter(child: SizedBox(height: 88)),
                   ],
                 ),
@@ -764,31 +751,6 @@ class AdminClinicsManagePanelState extends State<AdminClinicsManagePanel> {
           );
         },
       ),
-    );
-  }
-}
-
-class _OwnerTableCell extends StatelessWidget {
-  const _OwnerTableCell({required this.name, required this.email});
-
-  final String? name;
-  final String? email;
-
-  @override
-  Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.bodySmall;
-    if (name == null && email == null) {
-      return Text('—', style: style);
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (name != null && name!.isNotEmpty)
-          Text(name!, style: style?.copyWith(fontWeight: FontWeight.w600)),
-        if (email != null && email!.isNotEmpty)
-          Text(email!, style: style?.copyWith(color: Theme.of(context).colorScheme.primary)),
-      ],
     );
   }
 }
@@ -823,7 +785,6 @@ class _ClinicAdminCard extends StatelessWidget {
     final bgTint = alert ? Colors.red.shade50 : Colors.white;
 
     return Card(
-      elevation: 0,
       color: bgTint,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),

@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/formatting/appointment_time_display.dart';
 import '../../core/models/backend_models.dart';
+import '../../core/network/api_service.dart';
 import '../../core/network/backend_api_client.dart';
+import '../../core/network/session_manager.dart';
+import 'package:signalr_netcore/signalr_client.dart';
 
 /// Single activity line for the reception live feed (appointments + notifications).
 class ReceptionFeedItem {
@@ -23,19 +26,19 @@ class ReceptionFeedItem {
 
 /// Keeps reception timeline, live feed, and booking flows in sync with the API.
 class ReceptionDashboardController extends ChangeNotifier {
-  ReceptionDashboardController() {
-    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      unawaited(refreshQuiet());
-    });
-  }
+  ReceptionDashboardController();
 
   List<ApiAppointment> _appointments = [];
   List<Map<String, dynamic>> _notifications = [];
   bool loading = false;
   String? lastError;
-  Timer? _pollTimer;
+  Timer? _graceTimer;
+  HubConnection? _hub;
 
-  /// Emits [pendingAppointments.length] after each appointment fetch (including the 30s poll).
+  /// When an appointment becomes [ApiAppointmentStatus.completed], it stays visible this long before dropping off the active list.
+  final Map<int, DateTime> _completedGraceUntil = {};
+
+  /// Emits [pendingAppointments.length] after each appointment fetch (including poll).
   final StreamController<int> _pendingCountController = StreamController<int>.broadcast();
 
   /// Use with [StreamBuilder] for header/sidebar badges; updates whenever appointments are reloaded.
@@ -48,6 +51,21 @@ class ReceptionDashboardController extends ChangeNotifier {
   }
 
   List<ApiAppointment> get appointments => List.unmodifiable(_appointments);
+
+  /// Active timeline: non-cancelled rows; completed only during a short grace after the doctor ends the session.
+  List<ApiAppointment> get activeAppointmentsForTimeline {
+    final now = DateTime.now();
+    final list = _appointments.where((a) {
+      if (a.status == ApiAppointmentStatus.cancelled) return false;
+      if (a.status == ApiAppointmentStatus.completed) {
+        final until = _completedGraceUntil[a.id];
+        return until != null && now.isBefore(until);
+      }
+      return true;
+    }).toList();
+    list.sort((a, b) => a.scheduledAtUtc.compareTo(b.scheduledAtUtc));
+    return list;
+  }
 
   /// Patient-submitted bookings awaiting staff action (`Pending` in API).
   List<ApiAppointment> get pendingAppointments {
@@ -88,8 +106,8 @@ class ReceptionDashboardController extends ChangeNotifier {
         ),
       );
 
-      final notes = (a.notes ?? '').toLowerCase();
-      if (notes.contains('arrived') || notes.contains('checked in')) {
+      final blob = '${a.notes ?? ''} ${a.receptionNotes ?? ''}'.toLowerCase();
+      if (blob.contains('arrived') || blob.contains('checked in')) {
         items.add(
           ReceptionFeedItem(
             timestampUtc: a.updatedAtUtc ?? a.createdAtUtc ?? a.scheduledAtUtc,
@@ -151,19 +169,83 @@ class ReceptionDashboardController extends ChangeNotifier {
     }
   }
 
+  void _applyCompletedGraceTransition(List<ApiAppointment> before, List<ApiAppointment> after) {
+    final prevMap = {for (final x in before) x.id: x};
+    final now = DateTime.now();
+    for (final a in after) {
+      if (a.status != ApiAppointmentStatus.completed) continue;
+      final prev = prevMap[a.id];
+      final transitioned = prev != null && prev.status != ApiAppointmentStatus.completed;
+      if (transitioned) {
+        _completedGraceUntil[a.id] = now.add(const Duration(seconds: 5));
+      }
+    }
+    _completedGraceUntil.removeWhere((id, _) => !after.any((a) => a.id == id));
+  }
+
+  void _scheduleGraceTicker() {
+    _graceTimer?.cancel();
+    if (!_completedGraceUntil.values.any((t) => DateTime.now().isBefore(t))) return;
+    _graceTimer = Timer(const Duration(seconds: 1), () {
+      notifyListeners();
+      _scheduleGraceTicker();
+    });
+  }
+
   Future<void> _loadAppointments() async {
-    final raw = await BackendApiClient.instance.getAppointments();
-    _appointments = raw.map(ApiAppointment.fromJson).toList()
-      ..sort((a, b) => a.scheduledAtUtc.compareTo(b.scheduledAtUtc));
+    final previous = List<ApiAppointment>.from(_appointments);
+    _appointments = await BackendApiClient.instance.getAllAppointmentsAccumulated(pageSize: 40);
+    _applyCompletedGraceTransition(previous, _appointments);
+    _scheduleGraceTicker();
     _emitPendingCount();
+    await _ensureSignalR();
+  }
+
+  Future<void> _ensureSignalR() async {
+    if (_hub != null) return;
+    final cid = SessionManager.instance.assignedClinicId;
+    if (cid == null) return;
+    ApiService.instance.syncAuthorizationHeaderFromSession();
+    final options = HttpConnectionOptions(
+      accessTokenFactory: () async => SessionManager.instance.token ?? '',
+    );
+    final hub = HubConnectionBuilder()
+        .withUrl(ApiService.instance.signalRHubUrl, options: options)
+        .build();
+    hub.on('AppointmentChanged', (List<Object?>? args) {
+      if (args == null || args.isEmpty) return;
+      final f = args.first;
+      if (f is! Map) return;
+      final map = Map<String, dynamic>.from(f);
+      final payload = AppointmentChangePayload.fromJson(map);
+      _applySignalRPayload(payload);
+    });
+    await hub.start();
+    await hub.invoke('SubscribeReceptionClinic', args: <Object>[cid]);
+    _hub = hub;
+  }
+
+  void _applySignalRPayload(AppointmentChangePayload payload) {
+    if (payload.deleted && payload.id != null) {
+      final previous = List<ApiAppointment>.from(_appointments);
+      _appointments = _appointments.where((x) => x.id != payload.id).toList();
+      _applyCompletedGraceTransition(previous, _appointments);
+      _emitPendingCount();
+      notifyListeners();
+      return;
+    }
+    final ap = payload.appointment;
+    if (ap == null) return;
+    _upsertAppointment(ap);
   }
 
   Future<void> _loadNotifications() async {
     _notifications = await BackendApiClient.instance.getNotifications();
   }
 
-  /// Applies server row after PUT so the Pending list updates before the next GET finishes.
+  /// Applies server row after PUT so lists update before the next GET finishes.
   void _upsertAppointment(ApiAppointment updated) {
+    final previous = List<ApiAppointment>.from(_appointments);
     final i = _appointments.indexWhere((x) => x.id == updated.id);
     final next = List<ApiAppointment>.from(_appointments);
     if (i >= 0) {
@@ -173,6 +255,8 @@ class ReceptionDashboardController extends ChangeNotifier {
     }
     next.sort((a, b) => a.scheduledAtUtc.compareTo(b.scheduledAtUtc));
     _appointments = next;
+    _applyCompletedGraceTransition(previous, _appointments);
+    _scheduleGraceTicker();
     _emitPendingCount();
     notifyListeners();
   }
@@ -200,6 +284,8 @@ class ReceptionDashboardController extends ChangeNotifier {
     required DateTime scheduledAtUtc,
     required ApiAppointmentType type,
     String? notes,
+    String? doctorNotes,
+    String? receptionNotes,
   }) async {
     await BackendApiClient.instance.createAppointment(
       patientId: patientId,
@@ -210,12 +296,13 @@ class ReceptionDashboardController extends ChangeNotifier {
       scheduledAtUtc: scheduledAtUtc,
       type: type.value,
       notes: notes,
+      doctorNotes: doctorNotes,
+      receptionNotes: receptionNotes,
     );
     await refreshQuiet();
   }
 
   /// Maps to API `AppointmentStatus.Approved` (confirmed booking).
-  /// [scheduledAtUtc] overrides the list row time when reception changed the slot.
   Future<void> approvePendingAppointment(
     ApiAppointment a, {
     DateTime? scheduledAtUtc,
@@ -233,6 +320,8 @@ class ReceptionDashboardController extends ChangeNotifier {
         status: ApiAppointmentStatus.approved.value,
         doctorId: a.doctorId,
         notes: a.notes,
+        doctorNotes: a.doctorNotes,
+        receptionNotes: a.receptionNotes,
       );
       _upsertAppointment(updated);
       await refreshQuiet();
@@ -242,7 +331,9 @@ class ReceptionDashboardController extends ChangeNotifier {
     }
   }
 
-  Future<void> cancelPendingAppointment(ApiAppointment a) async {
+  /// Sets status to cancelled (pending, approved, etc.).
+  Future<void> cancelAppointment(ApiAppointment a) async {
+    if (a.status == ApiAppointmentStatus.cancelled) return;
     _busyAppointmentId = a.id;
     notifyListeners();
     try {
@@ -255,6 +346,8 @@ class ReceptionDashboardController extends ChangeNotifier {
         status: ApiAppointmentStatus.cancelled.value,
         doctorId: a.doctorId,
         notes: a.notes,
+        doctorNotes: a.doctorNotes,
+        receptionNotes: a.receptionNotes,
       );
       _upsertAppointment(updated);
       await refreshQuiet();
@@ -263,6 +356,8 @@ class ReceptionDashboardController extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> cancelPendingAppointment(ApiAppointment a) => cancelAppointment(a);
 
   Future<void> reschedulePendingAppointment(
     ApiAppointment a,
@@ -280,6 +375,8 @@ class ReceptionDashboardController extends ChangeNotifier {
         status: ApiAppointmentStatus.rescheduled.value,
         doctorId: a.doctorId,
         notes: a.notes,
+        doctorNotes: a.doctorNotes,
+        receptionNotes: a.receptionNotes,
       );
       _upsertAppointment(updated);
       await refreshQuiet();
@@ -289,9 +386,56 @@ class ReceptionDashboardController extends ChangeNotifier {
     }
   }
 
+  /// Change time only; keeps current status (e.g. approved stays approved).
+  Future<void> updateAppointmentTimeKeepingStatus(
+    ApiAppointment a,
+    DateTime newScheduledUtc,
+  ) async {
+    _busyAppointmentId = a.id;
+    notifyListeners();
+    try {
+      final updated = await BackendApiClient.instance.updateAppointment(
+        id: a.id,
+        patientName: a.patientName,
+        phoneNumber: a.phoneNumber,
+        scheduledAtUtc: newScheduledUtc,
+        type: a.type.value,
+        status: a.status.value,
+        doctorId: a.doctorId,
+        notes: a.notes,
+        doctorNotes: a.doctorNotes,
+        receptionNotes: a.receptionNotes,
+      );
+      _upsertAppointment(updated);
+      await refreshQuiet();
+    } finally {
+      _busyAppointmentId = null;
+      notifyListeners();
+    }
+  }
+
+  /// Hard delete (optional); use [cancelAppointment] for normal cancellation.
+  Future<void> deleteAppointmentPermanently(ApiAppointment a) async {
+    _busyAppointmentId = a.id;
+    notifyListeners();
+    try {
+      await BackendApiClient.instance.deleteAppointment(a.id);
+      final previous = List<ApiAppointment>.from(_appointments);
+      _appointments = _appointments.where((x) => x.id != a.id).toList();
+      _applyCompletedGraceTransition(previous, _appointments);
+      _emitPendingCount();
+      notifyListeners();
+      await refreshQuiet();
+    } finally {
+      _busyAppointmentId = null;
+      notifyListeners();
+    }
+  }
+
   @override
   void dispose() {
-    _pollTimer?.cancel();
+    unawaited(_hub?.stop() ?? Future.value());
+    _graceTimer?.cancel();
     _pendingCountController.close();
     super.dispose();
   }

@@ -1,4 +1,5 @@
 using AutoMapper;
+using Doctors.Application.Common;
 using Doctors.Application.Common.Exceptions;
 using Doctors.Application.Common.Interfaces;
 using Doctors.Application.DTOs.Appointments;
@@ -21,6 +22,8 @@ public class AppointmentService : IAppointmentService
     private readonly INotificationService _notifications;
     private readonly IMapper _mapper;
     private readonly IPatientClinicLinkService _patientClinicLinks;
+    private readonly IAppointmentRealtimeNotifier _realtime;
+    private readonly IRepository<AppointmentPrescription> _appointmentPrescriptions;
 
     public AppointmentService(
         IRepository<Appointment> appointments,
@@ -32,7 +35,9 @@ public class AppointmentService : IAppointmentService
         IUserProfileReader userProfileReader,
         INotificationService notifications,
         IMapper mapper,
-        IPatientClinicLinkService patientClinicLinks)
+        IPatientClinicLinkService patientClinicLinks,
+        IAppointmentRealtimeNotifier realtime,
+        IRepository<AppointmentPrescription> appointmentPrescriptions)
     {
         _appointments = appointments;
         _patients = patients;
@@ -44,14 +49,59 @@ public class AppointmentService : IAppointmentService
         _notifications = notifications;
         _mapper = mapper;
         _patientClinicLinks = patientClinicLinks;
+        _realtime = realtime;
+        _appointmentPrescriptions = appointmentPrescriptions;
     }
 
-    public async Task<IReadOnlyList<AppointmentDto>> GetAllForCurrentUserAsync(int? doctorId = null, CancellationToken cancellationToken = default)
+    public async Task<PagedAppointmentsDto> GetPageForCurrentUserAsync(
+        int? doctorId = null,
+        int pageNumber = 1,
+        int pageSize = 10,
+        DateTime? scheduledFromUtc = null,
+        DateTime? scheduledToUtc = null,
+        CancellationToken cancellationToken = default)
     {
-        var query = _appointments.Query()
+        pageNumber = Math.Max(1, pageNumber);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var query = await BuildFilteredQueryAsync(doctorId, cancellationToken);
+
+        if (scheduledFromUtc is not null)
+            query = query.Where(a => a.ScheduledAtUtc >= scheduledFromUtc.Value);
+        if (scheduledToUtc is not null)
+            query = query.Where(a => a.ScheduledAtUtc < scheduledToUtc.Value);
+
+        // Order before count/page. Count runs without Includes (cheaper); only the page loads Clinic/Doctor.
+        var ordered = query.OrderBy(a => a.ScheduledAtUtc);
+        var totalCount = await ordered.CountAsync(cancellationToken);
+        var page = await ordered
             .Include(a => a.Clinic)
             .Include(a => a.Doctor)
-            .AsQueryable();
+            .Include(a => a.AppointmentPrescriptions)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var items = await MapListAsync(page, cancellationToken);
+        return new PagedAppointmentsDto
+        {
+            Items = items,
+            TotalCount = totalCount,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+    }
+
+    /// <summary>In-memory only; do not use inside EF-translated LINQ (not translatable to SQL).</summary>
+    private static bool IsUnassignedPoolType(AppointmentType t) =>
+        t == AppointmentType.General
+        || t == AppointmentType.PregnancyFollowUp
+        || t == AppointmentType.Diabetes;
+
+    private async Task<IQueryable<Appointment>> BuildFilteredQueryAsync(int? doctorId, CancellationToken cancellationToken)
+    {
+        // No Include here — pagination applies Count/Skip/Take on a lean query; Includes added only when loading a page.
+        var query = _appointments.Query().AsQueryable();
 
         if (_currentUser.IsInRole(AppRoles.Admin))
         {
@@ -73,7 +123,10 @@ public class AppointmentService : IAppointmentService
                 throw new ForbiddenException("You can only list appointments for your own doctor id.");
             query = query.Where(a =>
                 a.ClinicId == doctor.ClinicId &&
-                (a.Type == AppointmentType.General || a.DoctorId == myDoctorId));
+                (a.Type == AppointmentType.General
+                    || a.Type == AppointmentType.PregnancyFollowUp
+                    || a.Type == AppointmentType.Diabetes
+                    || a.DoctorId == myDoctorId));
         }
         else if (_currentUser.IsInRole(AppRoles.Patient))
         {
@@ -101,11 +154,13 @@ public class AppointmentService : IAppointmentService
 
             query = query.Where(a =>
                 a.ClinicId == filterDoctor.ClinicId &&
-                (a.Type == AppointmentType.General || a.DoctorId == filterDoctorId));
+                (a.Type == AppointmentType.General
+                    || a.Type == AppointmentType.PregnancyFollowUp
+                    || a.Type == AppointmentType.Diabetes
+                    || a.DoctorId == filterDoctorId));
         }
 
-        var list = await query.OrderBy(a => a.ScheduledAtUtc).ToListAsync(cancellationToken);
-        return await MapListAsync(list, cancellationToken);
+        return query;
     }
 
     public async Task<AppointmentDto> GetByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -113,6 +168,7 @@ public class AppointmentService : IAppointmentService
         var entity = await _appointments.Query()
             .Include(a => a.Clinic)
             .Include(a => a.Doctor)
+            .Include(a => a.AppointmentPrescriptions)
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
         if (entity is null)
             throw new NotFoundException($"Appointment {id} was not found.");
@@ -124,8 +180,12 @@ public class AppointmentService : IAppointmentService
     {
         if (dto.Type == AppointmentType.SpecificDoctor && dto.DoctorId is null)
             throw new BadRequestAppException("Doctor is required for a specific-doctor appointment.");
-        if (dto.Type == AppointmentType.General && dto.DoctorId is not null)
-            throw new BadRequestAppException("General appointments must not assign a doctor.");
+        if (IsUnassignedPoolType(dto.Type) && dto.DoctorId is not null)
+            throw new BadRequestAppException("This appointment type must not pre-assign a doctor.");
+
+        var specializedErr = AppointmentSpecializedDataValidator.ValidateOrNull(dto.Type, dto.SpecializedDataJson);
+        if (specializedErr is not null)
+            throw new BadRequestAppException(specializedErr);
 
         var patient = await _patients.GetByIdAsync(dto.PatientId, cancellationToken)
             ?? throw new NotFoundException($"Patient {dto.PatientId} was not found.");
@@ -155,7 +215,6 @@ public class AppointmentService : IAppointmentService
         }
 
         var status = isStaff ? AppointmentStatus.Approved : AppointmentStatus.Pending;
-        // Appointments always reference Patients.Id (stable UUID / patient_id); list for patients filters on this FK.
         var entity = new Appointment
         {
             PatientId = dto.PatientId,
@@ -167,6 +226,14 @@ public class AppointmentService : IAppointmentService
             Type = dto.Type,
             Status = status,
             Notes = dto.Notes,
+            DoctorNotes = dto.DoctorNotes,
+            ReceptionNotes = dto.ReceptionNotes,
+            SpecializedDataJson = string.IsNullOrWhiteSpace(dto.SpecializedDataJson)
+                ? null
+                : dto.SpecializedDataJson.Trim(),
+            RequestedTests = string.IsNullOrWhiteSpace(dto.RequestedTests)
+                ? null
+                : dto.RequestedTests.Trim(),
             CreatedAtUtc = DateTime.UtcNow
         };
         await _appointments.AddAsync(entity, cancellationToken);
@@ -191,8 +258,12 @@ public class AppointmentService : IAppointmentService
         entity = await _appointments.Query()
             .Include(a => a.Clinic)
             .Include(a => a.Doctor)
+            .Include(a => a.AppointmentPrescriptions)
             .FirstAsync(a => a.Id == entity.Id, cancellationToken);
-        return await MapOneAsync(entity, cancellationToken);
+
+        var result = await MapOneAsync(entity, cancellationToken);
+        await _realtime.NotifyAppointmentUpsertAsync(await MapOneBroadcastAsync(entity, cancellationToken), cancellationToken);
+        return result;
     }
 
     public async Task<AppointmentDto> UpdateAsync(int id, UpdateAppointmentDto dto, CancellationToken cancellationToken = default)
@@ -217,8 +288,12 @@ public class AppointmentService : IAppointmentService
 
         if (dto.Type == AppointmentType.SpecificDoctor && dto.DoctorId is null)
             throw new BadRequestAppException("Doctor is required for a specific-doctor appointment.");
-        if (dto.Type == AppointmentType.General)
+        if (IsUnassignedPoolType(dto.Type))
             dto.DoctorId = null;
+
+        var specializedErrUp = AppointmentSpecializedDataValidator.ValidateOrNull(dto.Type, dto.SpecializedDataJson);
+        if (specializedErrUp is not null)
+            throw new BadRequestAppException(specializedErrUp);
 
         if (dto.DoctorId is int newDocId)
         {
@@ -233,11 +308,18 @@ public class AppointmentService : IAppointmentService
         entity.DoctorId = dto.DoctorId;
         entity.PatientName = dto.PatientName;
         entity.PhoneNumber = dto.PhoneNumber;
-        // Apply scheduled time before status so confirmation persists the slot from this request.
         entity.ScheduledAtUtc = dto.ScheduledAtUtc;
         entity.Type = dto.Type;
         entity.Status = dto.Status;
         entity.Notes = dto.Notes;
+        entity.DoctorNotes = dto.DoctorNotes;
+        entity.ReceptionNotes = dto.ReceptionNotes;
+        entity.SpecializedDataJson = string.IsNullOrWhiteSpace(dto.SpecializedDataJson)
+            ? null
+            : dto.SpecializedDataJson.Trim();
+        entity.RequestedTests = string.IsNullOrWhiteSpace(dto.RequestedTests)
+            ? null
+            : dto.RequestedTests.Trim();
         entity.UpdatedAtUtc = DateTime.UtcNow;
         _appointments.Update(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -255,7 +337,131 @@ public class AppointmentService : IAppointmentService
             }, cancellationToken);
         }
 
-        return await MapOneAsync(entity, cancellationToken);
+        entity = await _appointments.Query()
+            .Include(a => a.Clinic)
+            .Include(a => a.Doctor)
+            .Include(a => a.AppointmentPrescriptions)
+            .FirstAsync(a => a.Id == entity.Id, cancellationToken);
+
+        var result = await MapOneAsync(entity, cancellationToken);
+        await _realtime.NotifyAppointmentUpsertAsync(await MapOneBroadcastAsync(entity, cancellationToken), cancellationToken);
+        return result;
+    }
+
+    public async Task<AppointmentDto> UpdateSessionByDoctorAsync(int id, DoctorUpdateAppointmentSessionDto dto, CancellationToken cancellationToken = default)
+    {
+        if (!_currentUser.IsInRole(AppRoles.Doctor))
+            throw new ForbiddenException("Only doctors can update session notes.");
+
+        var entity = await _appointments.Query()
+            .Include(a => a.Clinic)
+            .Include(a => a.Doctor)
+            .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+        if (entity is null)
+            throw new NotFoundException($"Appointment {id} was not found.");
+
+        await EnsureCanAccessAsync(entity, cancellationToken);
+
+        if (dto.DoctorNotes is not null)
+            entity.DoctorNotes = string.IsNullOrWhiteSpace(dto.DoctorNotes) ? null : dto.DoctorNotes.Trim();
+
+        if (dto.SpecializedDataJson is not null)
+        {
+            var trimmed = dto.SpecializedDataJson.Trim();
+            var jsonPayload = trimmed.Length == 0 ? null : trimmed;
+            var err = AppointmentSpecializedDataValidator.ValidateOrNull(entity.Type, jsonPayload);
+            if (err is not null)
+                throw new BadRequestAppException(err);
+            entity.SpecializedDataJson = jsonPayload;
+        }
+
+        if (dto.RequestedTests is not null)
+        {
+            entity.RequestedTests = string.IsNullOrWhiteSpace(dto.RequestedTests)
+                ? null
+                : dto.RequestedTests.Trim();
+        }
+
+        entity.UpdatedAtUtc = DateTime.UtcNow;
+        _appointments.Update(entity);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        entity = await _appointments.Query()
+            .Include(a => a.Clinic)
+            .Include(a => a.Doctor)
+            .Include(a => a.AppointmentPrescriptions)
+            .FirstAsync(a => a.Id == id, cancellationToken);
+
+        var result = await MapOneAsync(entity, cancellationToken);
+        await _realtime.NotifyAppointmentUpsertAsync(await MapOneBroadcastAsync(entity, cancellationToken), cancellationToken);
+        return result;
+    }
+
+    public async Task<AppointmentDto> ReplaceAppointmentPrescriptionsAsync(
+        int id,
+        ReplaceAppointmentPrescriptionsDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_currentUser.IsInRole(AppRoles.Doctor))
+            throw new ForbiddenException("Only doctors can update appointment prescriptions.");
+
+        var entity = await _appointments.Query()
+            .Include(a => a.AppointmentPrescriptions)
+            .Include(a => a.Clinic)
+            .Include(a => a.Doctor)
+            .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+        if (entity is null)
+            throw new NotFoundException($"Appointment {id} was not found.");
+
+        await EnsureCanAccessAsync(entity, cancellationToken);
+
+        foreach (var line in entity.AppointmentPrescriptions.ToList())
+        {
+            _appointmentPrescriptions.Remove(line);
+        }
+
+        foreach (var line in dto.Lines)
+        {
+            if (string.IsNullOrWhiteSpace(line.MedicationName))
+                continue;
+
+            var times = Math.Clamp(line.TimesPerDay, 1, 24);
+            var start = line.StartDateUtc.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(line.StartDateUtc, DateTimeKind.Utc)
+                : line.StartDateUtc.ToUniversalTime();
+            DateTime? end = null;
+            if (line.EndDateUtc is { } e)
+            {
+                end = e.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(e, DateTimeKind.Utc)
+                    : e.ToUniversalTime();
+            }
+
+            await _appointmentPrescriptions.AddAsync(new AppointmentPrescription
+            {
+                AppointmentId = id,
+                MedicationName = line.MedicationName.Trim(),
+                Dosage = string.IsNullOrWhiteSpace(line.Dosage) ? string.Empty : line.Dosage.Trim(),
+                TimesPerDay = times,
+                StartDateUtc = start,
+                EndDateUtc = end,
+                CreatedAtUtc = DateTime.UtcNow
+            }, cancellationToken);
+        }
+
+        entity.UpdatedAtUtc = DateTime.UtcNow;
+        _appointments.Update(entity);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        entity = await _appointments.Query()
+            .Include(a => a.Clinic)
+            .Include(a => a.Doctor)
+            .Include(a => a.AppointmentPrescriptions)
+            .FirstAsync(a => a.Id == id, cancellationToken);
+
+        var result = await MapOneAsync(entity, cancellationToken);
+        await _realtime.NotifyAppointmentUpsertAsync(await MapOneBroadcastAsync(entity, cancellationToken), cancellationToken);
+        return result;
     }
 
     public async Task<AppointmentDto> UpdateStatusByDoctorAsync(int id, AppointmentStatus newStatus, CancellationToken cancellationToken = default)
@@ -310,7 +516,15 @@ public class AppointmentService : IAppointmentService
             }, cancellationToken);
         }
 
-        return await MapOneAsync(entity, cancellationToken);
+        entity = await _appointments.Query()
+            .Include(a => a.Clinic)
+            .Include(a => a.Doctor)
+            .Include(a => a.AppointmentPrescriptions)
+            .FirstAsync(a => a.Id == id, cancellationToken);
+
+        var result = await MapOneAsync(entity, cancellationToken);
+        await _realtime.NotifyAppointmentUpsertAsync(await MapOneBroadcastAsync(entity, cancellationToken), cancellationToken);
+        return result;
     }
 
     public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
@@ -330,8 +544,14 @@ public class AppointmentService : IAppointmentService
                 throw new ForbiddenException("You cannot delete appointments outside your clinic.");
         }
 
+        var clinicIdBroadcast = entity.ClinicId;
+        var patientIdBroadcast = entity.PatientId;
+        var doctorIdBroadcast = entity.DoctorId;
+
         _appointments.Remove(entity);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _realtime.NotifyAppointmentDeletedAsync(id, clinicIdBroadcast, patientIdBroadcast, doctorIdBroadcast, cancellationToken);
     }
 
     private async Task EnsureCanAccessAsync(Appointment entity, CancellationToken cancellationToken)
@@ -355,7 +575,7 @@ public class AppointmentService : IAppointmentService
             var doctor = await _doctors.GetByIdAsync(doctorId, cancellationToken)
                 ?? throw new NotFoundException("Doctor was not found.");
             var ok = entity.ClinicId == doctor.ClinicId &&
-                     (entity.Type == AppointmentType.General || entity.DoctorId == doctorId);
+                     (IsUnassignedPoolType(entity.Type) || entity.DoctorId == doctorId);
             if (!ok)
                 throw new ForbiddenException("You cannot access this appointment.");
             return;
@@ -392,6 +612,34 @@ public class AppointmentService : IAppointmentService
                 ? a.Doctor.UserId
                 : $"{profile.FirstName} {profile.LastName}".Trim();
         }
+        return ApplyNoteVisibility(dto);
+    }
+
+    /// <summary>Full DTO for SignalR (all note fields); clients filter by role.</summary>
+    private async Task<AppointmentDto> MapOneBroadcastAsync(Appointment a, CancellationToken cancellationToken)
+    {
+        var dto = _mapper.Map<AppointmentDto>(a);
+        if (a.Doctor is not null)
+        {
+            var profile = await _userProfileReader.GetAsync(a.Doctor.UserId, cancellationToken);
+            dto.DoctorName = profile is null
+                ? a.Doctor.UserId
+                : $"{profile.FirstName} {profile.LastName}".Trim();
+        }
+        return dto;
+    }
+
+    private AppointmentDto ApplyNoteVisibility(AppointmentDto dto)
+    {
+        if (_currentUser.IsInRole(AppRoles.Reception) || _currentUser.IsInRole(AppRoles.Admin))
+            return dto;
+        if (_currentUser.IsInRole(AppRoles.Doctor))
+        {
+            dto.ReceptionNotes = null;
+            return dto;
+        }
+        dto.ReceptionNotes = null;
+        dto.DoctorNotes = null;
         return dto;
     }
 }

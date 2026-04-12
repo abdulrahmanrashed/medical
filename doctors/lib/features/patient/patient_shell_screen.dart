@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-import 'package:url_launcher/url_launcher.dart';
-
 import '../../core/formatting/appointment_time_display.dart';
 import '../../core/layout/responsive.dart';
+import '../../core/layout/responsive_main_content.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/models/backend_models.dart';
 import '../../core/models/clinic_summary.dart';
 import '../../core/network/backend_api_client.dart';
 import 'patient_booking_flow_screen.dart';
+import 'patient_medical_history_screen.dart';
 
 class PatientShellScreen extends StatefulWidget {
   const PatientShellScreen({super.key});
@@ -36,8 +37,7 @@ class _PatientShellScreenState extends State<PatientShellScreen> {
 
   Future<void> _loadNextAppointmentCountdown() async {
     try {
-      final raw = await BackendApiClient.instance.getAppointments();
-      final appointments = raw.map(ApiAppointment.fromJson).toList();
+      final appointments = await BackendApiClient.instance.getAllAppointmentsAccumulated(pageSize: 40);
       final now = DateTime.now().toUtc();
       final upcoming = appointments
           .map((a) => a.scheduledAtUtc)
@@ -62,16 +62,16 @@ class _PatientShellScreenState extends State<PatientShellScreen> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isTablet = Responsive.isTablet(constraints.maxWidth);
+        final useRail = Responsive.useMasterLayout(constraints.maxWidth);
         return Scaffold(
           appBar: AppBar(
             title: Text(switch (_index) {
               0 => 'Home',
-              1 => 'Medical records',
+              1 => 'Medical history',
               _ => 'My appointments',
             }),
           ),
-          body: isTablet
+          body: useRail
               ? Row(
                   children: [
                     NavigationRail(
@@ -85,7 +85,7 @@ class _PatientShellScreenState extends State<PatientShellScreen> {
                         ),
                         NavigationRailDestination(
                           icon: Icon(Icons.folder_open_outlined),
-                          label: Text('Records'),
+                          label: Text('History'),
                         ),
                         NavigationRailDestination(
                           icon: Icon(Icons.event_note_outlined),
@@ -94,11 +94,16 @@ class _PatientShellScreenState extends State<PatientShellScreen> {
                       ],
                     ),
                     const VerticalDivider(width: 1),
-                    Expanded(child: _stack()),
+                    Expanded(
+                      child: ResponsiveMainContent(
+                        width: constraints.maxWidth,
+                        child: _stack(),
+                      ),
+                    ),
                   ],
                 )
               : _stack(),
-          bottomNavigationBar: isTablet
+          bottomNavigationBar: useRail
               ? null
               : NavigationBar(
                   selectedIndex: _index,
@@ -112,7 +117,7 @@ class _PatientShellScreenState extends State<PatientShellScreen> {
                     NavigationDestination(
                       icon: Icon(Icons.folder_open_outlined),
                       selectedIcon: Icon(Icons.folder_open),
-                      label: 'Records',
+                      label: 'History',
                     ),
                     NavigationDestination(
                       icon: Icon(Icons.event_note_outlined),
@@ -125,7 +130,7 @@ class _PatientShellScreenState extends State<PatientShellScreen> {
               ? null
               : FloatingActionButton.extended(
                   onPressed: () => setState(() => _index = 2),
-                  backgroundColor: const Color(0xFF008080),
+                  backgroundColor: AppTheme.primaryTeal,
                   foregroundColor: Colors.white,
                   icon: const Icon(Icons.timer_outlined),
                   label: Text('Next in ${_formatDuration(_remaining!)}'),
@@ -140,7 +145,7 @@ class _PatientShellScreenState extends State<PatientShellScreen> {
       index: _index,
       children: const [
         _ClinicsTab(),
-        _RecordsTab(),
+        PatientMedicalHistoryScreen(),
         _AppointmentsTab(),
       ],
     );
@@ -188,7 +193,7 @@ class _ClinicsTabState extends State<_ClinicsTab> {
     final padding = Responsive.screenPadding(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isTablet = Responsive.isTablet(constraints.maxWidth);
+        final wideLayout = Responsive.useMasterLayout(constraints.maxWidth);
         return RefreshIndicator(
           onRefresh: _reload,
           child: FutureBuilder<List<Map<String, dynamic>>>(
@@ -243,7 +248,7 @@ class _ClinicsTabState extends State<_ClinicsTab> {
                       ]),
                     ),
                   ),
-                  if (isTablet)
+                  if (wideLayout)
                     SliverPadding(
                       padding: padding.copyWith(top: 0),
                       sliver: SliverGrid(
@@ -315,7 +320,6 @@ class _PatientClinicCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
-      elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
@@ -410,172 +414,6 @@ class _PatientClinicCard extends StatelessWidget {
   }
 }
 
-class _RecordsTab extends StatefulWidget {
-  const _RecordsTab();
-
-  @override
-  State<_RecordsTab> createState() => _RecordsTabState();
-}
-
-class _RecordsTabState extends State<_RecordsTab> {
-  late Future<List<ApiMedicalRecordDetail>> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _load();
-  }
-
-  Future<List<ApiMedicalRecordDetail>> _load() async {
-    final raw = await BackendApiClient.instance.getMedicalRecords();
-    final list = raw
-        .map((e) => ApiMedicalRecordDetail.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
-    list.sort((a, b) => b.createdAtUtc.compareTo(a.createdAtUtc));
-    return list;
-  }
-
-  Future<void> _reload() async {
-    setState(() => _future = _load());
-    await _future;
-  }
-
-  Future<void> _openFile(ApiFileAttachment a) async {
-    final url = BackendApiClient.instance.attachmentUrl(a);
-    final uri = Uri.parse(url);
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!mounted) return;
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open file')),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final padding = Responsive.screenPadding(context);
-    return RefreshIndicator(
-      onRefresh: _reload,
-      child: FutureBuilder<List<ApiMedicalRecordDetail>>(
-        future: _future,
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: [
-                SizedBox(height: MediaQuery.sizeOf(context).height * 0.25),
-                const Center(child: CircularProgressIndicator()),
-              ],
-            );
-          }
-          if (snap.hasError) {
-            return ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: padding,
-              children: [
-                Text('Could not load history: ${snap.error}'),
-                const SizedBox(height: 12),
-                FilledButton(onPressed: _reload, child: const Text('Retry')),
-              ],
-            );
-          }
-          final items = snap.data ?? const <ApiMedicalRecordDetail>[];
-          return ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: padding,
-            children: [
-              Text(
-                'My Records',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontSize: Responsive.titleSize(context),
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Visits, prescriptions, and files from your doctors.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-              const SizedBox(height: 16),
-              if (items.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 32),
-                  child: Text(
-                    'No records yet.',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                )
-              else
-                for (final r in items) ...[
-                  Card(
-                    child: ExpansionTile(
-                      leading: const Icon(Icons.folder_shared_outlined),
-                      title: Text(
-                        r.diagnosis != null && r.diagnosis!.trim().isNotEmpty
-                            ? r.diagnosis!.trim()
-                            : 'Clinical visit',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        '${r.doctorName}\n${formatAppointmentDateTimeLine(r.createdAtUtc)}',
-                      ),
-                      children: [
-                        if (r.symptoms != null && r.symptoms!.trim().isNotEmpty)
-                          ListTile(
-                            title: const Text('Symptoms'),
-                            subtitle: Text(r.symptoms!),
-                          ),
-                        if (r.diagnosis != null && r.diagnosis!.trim().isNotEmpty)
-                          ListTile(
-                            title: const Text('Diagnosis'),
-                            subtitle: Text(r.diagnosis!),
-                          ),
-                        if (r.notes != null && r.notes!.trim().isNotEmpty)
-                          ListTile(
-                            title: const Text('Notes'),
-                            subtitle: Text(r.notes!),
-                          ),
-                        for (final p in r.prescriptions)
-                          for (final m in p.medications)
-                            ListTile(
-                              leading: const Icon(Icons.medication_outlined),
-                              title: Text(m.name),
-                              subtitle: Text(
-                                '${m.dosage} · ${m.schedule}'
-                                '${m.instructions != null && m.instructions!.isNotEmpty ? '\n${m.instructions}' : ''}',
-                              ),
-                              isThreeLine: m.instructions != null && m.instructions!.isNotEmpty,
-                            ),
-                        for (final f in r.attachments)
-                          ListTile(
-                            leading: Icon(
-                              f.contentType.contains('pdf') ||
-                                      f.originalFileName.toLowerCase().endsWith('.pdf')
-                                  ? Icons.picture_as_pdf
-                                  : Icons.image_outlined,
-                            ),
-                            title: Text(f.originalFileName),
-                            subtitle: const Text('Tap to open'),
-                            trailing: const Icon(Icons.open_in_new),
-                            onTap: () => _openFile(f),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
 class _AppointmentsTab extends StatefulWidget {
   const _AppointmentsTab();
 
@@ -593,10 +431,7 @@ class _AppointmentsTabState extends State<_AppointmentsTab> {
   }
 
   Future<List<ApiAppointment>> _loadAppointments() async {
-    final raw = await BackendApiClient.instance.getAppointments();
-    final list = raw.map(ApiAppointment.fromJson).toList(growable: false);
-    list.sort((a, b) => a.scheduledAtUtc.compareTo(b.scheduledAtUtc));
-    return list;
+    return BackendApiClient.instance.getAllAppointmentsAccumulated(pageSize: 40);
   }
 
   Future<void> _reload() async {
@@ -672,7 +507,9 @@ class _PatientAppointmentCard extends StatelessWidget {
   static String _doctorLine(ApiAppointment a) {
     final n = a.doctorName?.trim();
     if (n != null && n.isNotEmpty) return n;
-    if (a.type == ApiAppointmentType.general) {
+    if (a.type == ApiAppointmentType.general ||
+        a.type == ApiAppointmentType.pregnancyFollowUp ||
+        a.type == ApiAppointmentType.diabetes) {
       return 'Any available doctor';
     }
     return 'Doctor to be assigned';
@@ -691,7 +528,6 @@ class _PatientAppointmentCard extends StatelessWidget {
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
@@ -743,6 +579,24 @@ class _PatientAppointmentCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     'Specific doctor visit',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ] else if (a.type == ApiAppointmentType.pregnancyFollowUp) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Pregnancy follow-up',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ] else if (a.type == ApiAppointmentType.diabetes) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Diabetes visit',
                     style: theme.textTheme.labelMedium?.copyWith(
                           color: theme.colorScheme.primary,
                           fontWeight: FontWeight.w600,

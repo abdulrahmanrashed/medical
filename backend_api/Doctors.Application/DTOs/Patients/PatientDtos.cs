@@ -11,7 +11,8 @@ public class PatientDto
     public string FullName { get; set; } = string.Empty;
     public bool InsuranceStatus { get; set; }
     public string? InsuranceDetails { get; set; }
-    public string? ChronicDiseases { get; set; }
+    public IReadOnlyList<string> ChronicDiseases { get; set; } = Array.Empty<string>();
+    public bool HasChronicCondition { get; set; }
     public PatientRegistrationStatus RegistrationStatus { get; set; }
     public DateTime? DateOfBirth { get; set; }
     public IReadOnlyList<int> ClinicIds { get; set; } = Array.Empty<int>();
@@ -52,7 +53,7 @@ public class UpdatePatientProfileDto
     public DateTime? DateOfBirth { get; set; }
     public bool? InsuranceStatus { get; set; }
     public string? InsuranceDetails { get; set; }
-    public string? ChronicDiseases { get; set; }
+    public IReadOnlyList<string>? ChronicDiseases { get; set; }
 }
 
 /// <summary>Anonymous app registration step: lookup by phone before completing signup.</summary>
@@ -73,5 +74,5 @@ public class PatientRegistrationLookupResponseDto
     public DateTime? DateOfBirth { get; set; }
     public bool InsuranceStatus { get; set; }
     public string? InsuranceDetails { get; set; }
-    public string? ChronicDiseases { get; set; }
+    public IReadOnlyList<string>? ChronicDiseases { get; set; }
 }

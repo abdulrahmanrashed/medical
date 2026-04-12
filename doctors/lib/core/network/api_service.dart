@@ -53,4 +53,11 @@ class ApiService {
     }
     return '${u.scheme}://${u.host}';
   }
+
+  /// SignalR hub (no `/api` prefix). JWT via [HttpConnectionOptions.accessTokenFactory] or negotiate header.
+  String get signalRHubUrl {
+    final u = Uri.parse(client.options.baseUrl);
+    final origin = u.hasPort ? '${u.scheme}://${u.host}:${u.port}' : '${u.scheme}://${u.host}';
+    return '$origin/hubs/appointments';
+  }
 }

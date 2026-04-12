@@ -13,6 +13,9 @@ class SessionManager {
   String? userId;
   int? doctorId;
 
+  /// From [applyDoctorMe]; used for SignalR `SubscribeDoctorClinic`.
+  int? doctorClinicId;
+
   /// From login payload and/or [applyDoctorMe]. Used by the doctor dashboard and session flows.
   DoctorSpecialization? doctorSpecialization;
   /// Stable patient UUID from the API (`patient_id` claim).
@@ -68,6 +71,7 @@ class SessionManager {
   void applyDoctorMe(Map<String, dynamic> me) {
     final id = _parseOptionalInt(me['id']);
     if (id != null) doctorId = id;
+    doctorClinicId = _parseOptionalInt(me['clinicId']);
     final raw = me['specialization']?.toString();
     if (raw != null && raw.trim().isNotEmpty) {
       doctorSpecialization = DoctorSummary.specializationFromApi(raw);
@@ -79,6 +83,7 @@ class SessionManager {
     email = null;
     userId = null;
     doctorId = null;
+    doctorClinicId = null;
     doctorSpecialization = null;
     patientId = null;
     assignedClinicId = null;

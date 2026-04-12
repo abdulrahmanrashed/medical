@@ -108,7 +108,6 @@ class _AdminBillingHistoryScreenState extends State<AdminBillingHistoryScreen> {
                 final money = NumberFormat.currency(symbol: r'$');
 
                 return Card(
-                  elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                     side: BorderSide(color: Colors.black.withValues(alpha: 0.06)),

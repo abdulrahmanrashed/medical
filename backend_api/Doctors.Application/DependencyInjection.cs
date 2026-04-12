@@ -19,7 +19,10 @@ public static class DependencyInjection
         services.AddScoped<IPatientService, PatientService>();
         services.AddScoped<IPatientClinicLinkService, PatientClinicLinkService>();
         services.AddScoped<IAppointmentService, AppointmentService>();
+        services.AddScoped<IAppointmentRealtimeNotifier, NoOpAppointmentRealtimeNotifier>();
         services.AddScoped<IMedicalRecordService, MedicalRecordService>();
+        services.AddScoped<IMedicalFileService, MedicalFileService>();
+        services.AddScoped<IPatientMedicalHistoryService, PatientMedicalHistoryService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IDoctorWorkScheduleService, DoctorWorkScheduleService>();
 

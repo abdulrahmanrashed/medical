@@ -1,6 +1,8 @@
 enum ApiAppointmentType {
   general(0),
-  specificDoctor(1);
+  specificDoctor(1),
+  pregnancyFollowUp(2),
+  diabetes(3);
 
   const ApiAppointmentType(this.value);
   final int value;
@@ -18,6 +20,8 @@ ApiAppointmentType _parseAppointmentType(dynamic raw) {
   final s = raw.toString().toLowerCase().trim();
   if (s == '0' || s == 'general') return ApiAppointmentType.general;
   if (s == '1' || s == 'specificdoctor') return ApiAppointmentType.specificDoctor;
+  if (s == '2' || s == 'pregnancyfollowup') return ApiAppointmentType.pregnancyFollowUp;
+  if (s == '3' || s == 'diabetes') return ApiAppointmentType.diabetes;
   return ApiAppointmentType.general;
 }
 
@@ -49,6 +53,14 @@ ApiAppointmentStatus _parseAppointmentStatus(dynamic raw) {
   if (s == '4' || s == 'completed') return ApiAppointmentStatus.completed;
   if (s == '5' || s == 'inprogress') return ApiAppointmentStatus.inProgress;
   return ApiAppointmentStatus.pending;
+}
+
+List<ApiAppointmentPrescription> _parseAppointmentPrescriptionList(dynamic raw) {
+  if (raw is! List<dynamic>) return const [];
+  return raw
+      .whereType<Map>()
+      .map((e) => ApiAppointmentPrescription.fromJson(Map<String, dynamic>.from(e)))
+      .toList(growable: false);
 }
 
 enum ApiNotificationType {
@@ -136,7 +148,7 @@ class PatientRegistrationLookupResult {
     this.dateOfBirth,
     this.insuranceStatus = false,
     this.insuranceDetails,
-    this.chronicDiseases,
+    this.chronicDiseases = const [],
   });
 
   final bool found;
@@ -148,7 +160,7 @@ class PatientRegistrationLookupResult {
   final DateTime? dateOfBirth;
   final bool insuranceStatus;
   final String? insuranceDetails;
-  final String? chronicDiseases;
+  final List<String> chronicDiseases;
 
   factory PatientRegistrationLookupResult.fromJson(Map<String, dynamic> json) {
     final status = ApiPatientRegistrationStatus.parse(json['registrationStatus']);
@@ -164,9 +176,19 @@ class PatientRegistrationLookupResult {
           : null,
       insuranceStatus: json['insuranceStatus'] as bool? ?? false,
       insuranceDetails: json['insuranceDetails'] as String?,
-      chronicDiseases: json['chronicDiseases'] as String?,
+      chronicDiseases: _parseChronicDiseasesList(json['chronicDiseases']),
     );
   }
+}
+
+List<String> _parseChronicDiseasesList(dynamic raw) {
+  if (raw == null) return const [];
+  if (raw is List) {
+    return raw.map((e) => e.toString().trim()).where((s) => s.isNotEmpty).toList(growable: false);
+  }
+  final s = raw.toString().trim();
+  if (s.isEmpty) return const [];
+  return [s];
 }
 
 class ApiPatient {
@@ -179,7 +201,8 @@ class ApiPatient {
     this.dateOfBirth,
     this.insuranceStatus = false,
     this.insuranceDetails,
-    this.chronicDiseases,
+    this.chronicDiseases = const [],
+    this.hasChronicCondition = false,
     this.registrationStatus,
   });
 
@@ -191,7 +214,8 @@ class ApiPatient {
   final DateTime? dateOfBirth;
   final bool insuranceStatus;
   final String? insuranceDetails;
-  final String? chronicDiseases;
+  final List<String> chronicDiseases;
+  final bool hasChronicCondition;
   final String? registrationStatus;
 
   /// Stable clinical anchor (UUID); same as [id].
@@ -211,7 +235,8 @@ class ApiPatient {
             : null,
         insuranceStatus: json['insuranceStatus'] as bool? ?? false,
         insuranceDetails: json['insuranceDetails'] as String?,
-        chronicDiseases: json['chronicDiseases'] as String?,
+        chronicDiseases: _parseChronicDiseasesList(json['chronicDiseases']),
+        hasChronicCondition: json['hasChronicCondition'] as bool? ?? false,
         registrationStatus: json['registrationStatus'] as String?,
       );
 }
@@ -267,6 +292,37 @@ DateTime? _tryParseUtcIso8601(dynamic raw) {
   }
 }
 
+class ApiAppointmentPrescription {
+  const ApiAppointmentPrescription({
+    required this.id,
+    required this.appointmentId,
+    required this.medicationName,
+    required this.dosage,
+    required this.timesPerDay,
+    required this.startDateUtc,
+    this.endDateUtc,
+  });
+
+  final int id;
+  final int appointmentId;
+  final String medicationName;
+  final String dosage;
+  final int timesPerDay;
+  final DateTime startDateUtc;
+  final DateTime? endDateUtc;
+
+  factory ApiAppointmentPrescription.fromJson(Map<String, dynamic> json) =>
+      ApiAppointmentPrescription(
+        id: _parseInt(json['id']),
+        appointmentId: _parseInt(json['appointmentId']),
+        medicationName: json['medicationName'] as String? ?? '',
+        dosage: json['dosage'] as String? ?? '',
+        timesPerDay: _parseInt(json['timesPerDay'], 1),
+        startDateUtc: _tryParseUtcIso8601(json['startDateUtc']) ?? DateTime.now().toUtc(),
+        endDateUtc: _tryParseUtcIso8601(json['endDateUtc']),
+      );
+}
+
 class ApiAppointment {
   const ApiAppointment({
     required this.id,
@@ -279,10 +335,15 @@ class ApiAppointment {
     required this.type,
     required this.status,
     this.notes,
+    this.doctorNotes,
+    this.receptionNotes,
     this.clinicName,
     this.doctorName,
     this.createdAtUtc,
     this.updatedAtUtc,
+    this.specializedDataJson,
+    this.requestedTests,
+    this.appointmentPrescriptions = const [],
   });
 
   final int id;
@@ -295,10 +356,15 @@ class ApiAppointment {
   final ApiAppointmentType type;
   final ApiAppointmentStatus status;
   final String? notes;
+  final String? doctorNotes;
+  final String? receptionNotes;
   final String? clinicName;
   final String? doctorName;
   final DateTime? createdAtUtc;
   final DateTime? updatedAtUtc;
+  final String? specializedDataJson;
+  final String? requestedTests;
+  final List<ApiAppointmentPrescription> appointmentPrescriptions;
 
   factory ApiAppointment.fromJson(Map<String, dynamic> json) => ApiAppointment(
         id: _parseInt(json['id']),
@@ -311,10 +377,16 @@ class ApiAppointment {
         type: _parseAppointmentType(json['type']),
         status: _parseAppointmentStatus(json['status']),
         notes: json['notes'] as String?,
+        doctorNotes: json['doctorNotes'] as String?,
+        receptionNotes: json['receptionNotes'] as String?,
         clinicName: json['clinicName'] as String?,
         doctorName: json['doctorName'] as String?,
         createdAtUtc: _tryParseUtcIso8601(json['createdAtUtc']),
         updatedAtUtc: _tryParseUtcIso8601(json['updatedAtUtc']),
+        specializedDataJson: json['specializedDataJson'] as String?,
+        requestedTests: json['requestedTests'] as String?,
+        appointmentPrescriptions:
+            _parseAppointmentPrescriptionList(json['appointmentPrescriptions']),
       );
 
   /// Opens the doctor session screen from the patient archive when there is no live appointment row. [id] is 0.
@@ -335,6 +407,72 @@ class ApiAppointment {
       scheduledAtUtc: lastVisitUtc,
       type: ApiAppointmentType.general,
       status: ApiAppointmentStatus.completed,
+      specializedDataJson: null,
+      requestedTests: null,
+      appointmentPrescriptions: const [],
+    );
+  }
+}
+
+/// Response from paginated `GET /Appointments`.
+class PagedAppointments {
+  const PagedAppointments({
+    required this.items,
+    required this.totalCount,
+    required this.pageNumber,
+    required this.pageSize,
+  });
+
+  final List<ApiAppointment> items;
+  final int totalCount;
+  final int pageNumber;
+  final int pageSize;
+
+  factory PagedAppointments.fromJson(Map<String, dynamic> json) {
+    final raw = json['items'] as List<dynamic>? ?? const [];
+    return PagedAppointments(
+      items: raw
+          .whereType<Map>()
+          .map((e) => ApiAppointment.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      totalCount: _parseInt(json['totalCount']),
+      pageNumber: _parseInt(json['pageNumber'], 1),
+      pageSize: _parseInt(json['pageSize'], 10),
+    );
+  }
+}
+
+/// SignalR `AppointmentChanged` payload (camelCase from ASP.NET Core JSON).
+class AppointmentChangePayload {
+  const AppointmentChangePayload({
+    required this.deleted,
+    this.id,
+    this.clinicId,
+    this.patientId,
+    this.doctorId,
+    this.appointment,
+  });
+
+  final bool deleted;
+  final int? id;
+  final int? clinicId;
+  final String? patientId;
+  final int? doctorId;
+  final ApiAppointment? appointment;
+
+  factory AppointmentChangePayload.fromJson(Map<String, dynamic> json) {
+    ApiAppointment? ap;
+    final raw = json['appointment'];
+    if (raw is Map) {
+      ap = ApiAppointment.fromJson(Map<String, dynamic>.from(raw));
+    }
+    return AppointmentChangePayload(
+      deleted: json['deleted'] == true,
+      id: _parseIntNullable(json['id']),
+      clinicId: _parseIntNullable(json['clinicId']),
+      patientId: _parseGuid(json['patientId']),
+      doctorId: _parseIntNullable(json['doctorId']),
+      appointment: ap,
     );
   }
 }
@@ -588,4 +726,81 @@ class ApiPatientClinic {
         clinicId: _parseInt(json['clinicId']),
         linkedAtUtc: DateTime.parse(json['linkedAtUtc'].toString()),
       );
+}
+
+class ApiMedicalFile {
+  const ApiMedicalFile({
+    required this.id,
+    required this.patientId,
+    this.appointmentId,
+    required this.fileName,
+    required this.fileUrl,
+    this.publicUrl,
+    required this.fileType,
+    required this.createdAtUtc,
+  });
+
+  final int id;
+  final String patientId;
+  final int? appointmentId;
+  final String fileName;
+  final String fileUrl;
+  final String? publicUrl;
+
+  /// API sends `Image` or `Pdf` (JSON string enum).
+  final String fileType;
+  final DateTime createdAtUtc;
+
+  factory ApiMedicalFile.fromJson(Map<String, dynamic> json) => ApiMedicalFile(
+        id: _parseInt(json['id']),
+        patientId: _parseGuid(json['patientId']) ?? '',
+        appointmentId: _parseIntNullable(json['appointmentId']),
+        fileName: json['fileName'] as String? ?? '',
+        fileUrl: json['fileUrl'] as String? ?? '',
+        publicUrl: json['publicUrl'] as String?,
+        fileType: json['fileType']?.toString() ?? 'Image',
+        createdAtUtc:
+            _tryParseUtcIso8601(json['createdAtUtc']) ?? DateTime.now().toUtc(),
+      );
+}
+
+class PatientMedicalHistory {
+  const PatientMedicalHistory({
+    this.currentDiagnosis,
+    this.currentClinicalNotes,
+    this.latestMedicalRecordAtUtc,
+    this.requestedTests,
+    this.activeAppointmentPrescriptions = const [],
+    this.medicalFiles = const [],
+  });
+
+  final String? currentDiagnosis;
+  final String? currentClinicalNotes;
+  final DateTime? latestMedicalRecordAtUtc;
+  final String? requestedTests;
+  final List<ApiAppointmentPrescription> activeAppointmentPrescriptions;
+  final List<ApiMedicalFile> medicalFiles;
+
+  factory PatientMedicalHistory.fromJson(Map<String, dynamic> json) {
+    final presc = json['activeAppointmentPrescriptions'] as List<dynamic>? ?? const [];
+    final files = json['medicalFiles'] as List<dynamic>? ?? const [];
+    return PatientMedicalHistory(
+      currentDiagnosis: json['currentDiagnosis'] as String?,
+      currentClinicalNotes: json['currentClinicalNotes'] as String?,
+      latestMedicalRecordAtUtc:
+          _tryParseUtcIso8601(json['latestMedicalRecordAtUtc']),
+      requestedTests: json['requestedTests'] as String?,
+      activeAppointmentPrescriptions: presc
+          .whereType<Map>()
+          .map((e) => ApiAppointmentPrescription.fromJson(
+                Map<String, dynamic>.from(e),
+              ))
+          .toList(),
+      medicalFiles: files
+          .whereType<Map>()
+          .map((e) =>
+              ApiMedicalFile.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+    );
+  }
 }

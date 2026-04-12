@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/layout/adaptive_sheet.dart';
 import '../../core/layout/responsive.dart';
 import '../../core/network/backend_api_client.dart';
 import 'clinic_owner_ui.dart';
 
-const Color _kPrimary = Color(0xFF004D40);
 const Color _kWorkingGreen = Color(0xFF2E7D32);
 const Color _kOffRust = Color(0xFFB71C1C);
 
@@ -28,6 +28,9 @@ class ClinicScheduleManagementScreen extends StatefulWidget {
 
 class _ClinicScheduleManagementScreenState extends State<ClinicScheduleManagementScreen> {
   late Future<_SchedulePageData> _future;
+
+  /// Master–detail selection for [Responsive.useMasterLayout] widths.
+  int? _selectedScheduleIndex;
 
   @override
   void initState() {
@@ -56,7 +59,10 @@ class _ClinicScheduleManagementScreenState extends State<ClinicScheduleManagemen
   }
 
   Future<void> _reload() async {
-    setState(() => _future = _load());
+    setState(() {
+      _future = _load();
+      _selectedScheduleIndex = null;
+    });
     await _future;
   }
 
@@ -84,7 +90,7 @@ class _ClinicScheduleManagementScreenState extends State<ClinicScheduleManagemen
             onSuccess: _reload,
           );
         },
-        backgroundColor: _kPrimary,
+        backgroundColor: ClinicOwnerUi.primary,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add),
         label: const Text('Add schedule'),
@@ -149,6 +155,77 @@ class _ClinicScheduleManagementScreenState extends State<ClinicScheduleManagemen
 
         final grouped = _groupSchedulesByMonth(data.schedules);
         final keys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+        final flatRows = _flattenSchedulesByMonthOrder(grouped, keys);
+
+        final wide = Responsive.useMasterLayout(MediaQuery.sizeOf(context).width);
+        if (wide && flatRows.isNotEmpty) {
+          final idx = (_selectedScheduleIndex ?? 0).clamp(0, flatRows.length - 1);
+          return RefreshIndicator(
+            onRefresh: _reload,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        width: 300,
+                        child: ColoredBox(
+                          color: ClinicOwnerUi.surface,
+                          child: ListView.separated(
+                            padding: EdgeInsets.fromLTRB(
+                              padding.left,
+                              padding.top,
+                              8,
+                              padding.bottom + bottomInset,
+                            ),
+                            itemCount: flatRows.length,
+                            separatorBuilder: (context, index) => const Divider(height: 1),
+                            itemBuilder: (context, i) {
+                              final row = flatRows[i];
+                              final working = _isScheduleWorking(row);
+                              final dt = _parseShiftDate(row['shiftDate']);
+                              final dateStr = dt != null ? DateFormat.yMMMd().format(dt) : '—';
+                              final first = row['doctorFirstName']?.toString() ?? '';
+                              final last = row['doctorLastName']?.toString() ?? '';
+                              final name = '$first $last'.trim().isEmpty
+                                  ? 'Doctor #${row['doctorId']}'
+                                  : '$first $last'.trim();
+                              final sel = i == idx;
+                              return ListTile(
+                                selected: sel,
+                                title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                subtitle: Text(dateStr, maxLines: 1),
+                                trailing: Icon(
+                                  working ? Icons.work_outline : Icons.event_busy,
+                                  size: 20,
+                                  color: working ? _kWorkingGreen : _kOffRust,
+                                ),
+                                onTap: () => setState(() => _selectedScheduleIndex = i),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      const VerticalDivider(width: 1),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: padding.copyWith(top: 0, bottom: bottomInset),
+                          child: _ScheduleEntryCard(
+                            row: flatRows[idx],
+                            onChanged: _reload,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
 
         return RefreshIndicator(
           onRefresh: _reload,
@@ -176,7 +253,7 @@ class _ClinicScheduleManagementScreenState extends State<ClinicScheduleManagemen
                           title,
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w800,
-                                color: _kPrimary,
+                                color: ClinicOwnerUi.primary,
                               ),
                         ),
                       ),
@@ -227,11 +304,9 @@ Future<void> showClinicOwnerAddScheduleSheet(
   final doctors = await BackendApiClient.instance.getDoctorsByClinic(clinicId);
   final active = doctors.where((d) => d['isActive'] != false).toList();
   if (!context.mounted) return;
-  final ok = await showModalBottomSheet<bool>(
+  final ok = await showAdaptiveSheet<bool>(
     context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    useSafeArea: true,
+    maxWidth: 560,
     builder: (ctx) => _AddScheduleSheet(clinicId: clinicId, doctors: active),
   );
   if (ok == true && context.mounted) await onSuccess();
@@ -261,6 +336,17 @@ Map<String, List<Map<String, dynamic>>> _groupSchedulesByMonth(List<Map<String, 
     });
   }
   return map;
+}
+
+List<Map<String, dynamic>> _flattenSchedulesByMonthOrder(
+  Map<String, List<Map<String, dynamic>>> grouped,
+  List<String> sortedKeys,
+) {
+  final out = <Map<String, dynamic>>[];
+  for (final k in sortedKeys) {
+    out.addAll(grouped[k]!);
+  }
+  return out;
 }
 
 DateTime? _parseShiftDate(dynamic v) {
@@ -299,6 +385,19 @@ bool _canEditSchedule(Map<String, dynamic> row) {
   final d = DateTime(dt.year, dt.month, dt.day);
   final t = DateTime(today.year, today.month, today.day);
   return !d.isBefore(t);
+}
+
+Future<void> _openEditScheduleSheet(
+  BuildContext context,
+  Map<String, dynamic> row,
+  Future<void> Function() onChanged,
+) async {
+  final ok = await showAdaptiveSheet<bool>(
+    context: context,
+    maxWidth: 520,
+    builder: (ctx) => _EditScheduleSheet(row: row),
+  );
+  if (ok == true && context.mounted) await onChanged();
 }
 
 class _ScheduleEntryCard extends StatelessWidget {
@@ -343,7 +442,6 @@ class _ScheduleEntryCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Card(
-        elevation: 0,
         color: bg,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
@@ -456,14 +554,7 @@ class _ScheduleEntryCard extends StatelessWidget {
                         child: TextButton.icon(
                           onPressed: canEdit
                               ? () async {
-                                  final ok = await showModalBottomSheet<bool>(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    showDragHandle: true,
-                                    useSafeArea: true,
-                                    builder: (ctx) => _EditScheduleSheet(row: row),
-                                  );
-                                  if (ok == true && context.mounted) await onChanged();
+                                  await _openEditScheduleSheet(context, row, onChanged);
                                 }
                               : null,
                           icon: const Icon(Icons.edit_outlined, size: 18),
@@ -688,7 +779,7 @@ class _AddScheduleSheetState extends State<_AddScheduleSheet> {
             ),
             const SizedBox(height: 20),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: _kPrimary),
+              style: FilledButton.styleFrom(backgroundColor: ClinicOwnerUi.primary),
               onPressed: _submitting || docs.isEmpty || _doctorId == null ? null : _submit,
               child: _submitting
                   ? const SizedBox(
@@ -850,7 +941,7 @@ class _EditScheduleSheetState extends State<_EditScheduleSheet> {
             ),
             const SizedBox(height: 16),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: _kPrimary),
+              style: FilledButton.styleFrom(backgroundColor: ClinicOwnerUi.primary),
               onPressed: _submitting ? null : _save,
               child: _submitting
                   ? const SizedBox(

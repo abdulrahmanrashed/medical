@@ -308,17 +308,68 @@ class BackendApiClient {
     return res.data ?? <String, dynamic>{};
   }
 
-  Future<List<Map<String, dynamic>>> getAppointments({int? doctorId}) async {
-    final res = await _dio.get<List<dynamic>>(
+  /// Paginated appointments (default page size 10 on the server).
+  Future<PagedAppointments> getAppointmentsPage({
+    int? doctorId,
+    int pageNumber = 1,
+    int pageSize = 10,
+    DateTime? scheduledFromUtc,
+    DateTime? scheduledToUtc,
+  }) async {
+    ApiService.instance.syncAuthorizationHeaderFromSession();
+    final qp = <String, dynamic>{
+      'pageNumber': pageNumber,
+      'pageSize': pageSize,
+    };
+    if (doctorId != null) qp['doctorId'] = doctorId;
+    if (scheduledFromUtc != null) {
+      qp['scheduledFromUtc'] = scheduledFromUtc.toUtc().toIso8601String();
+    }
+    if (scheduledToUtc != null) {
+      qp['scheduledToUtc'] = scheduledToUtc.toUtc().toIso8601String();
+    }
+    final res = await _dio.get<Map<String, dynamic>>(
       '/Appointments',
-      queryParameters: doctorId != null ? <String, dynamic>{'doctorId': doctorId} : null,
+      queryParameters: qp,
     );
-    return _listMap(res.data);
+    return PagedAppointments.fromJson(res.data ?? <String, dynamic>{});
+  }
+
+  /// Loads all pages into a single list (use sparingly; prefer [getAppointmentsPage] + infinite scroll).
+  Future<List<ApiAppointment>> getAllAppointmentsAccumulated({
+    int? doctorId,
+    int pageSize = 50,
+    DateTime? scheduledFromUtc,
+    DateTime? scheduledToUtc,
+  }) async {
+    final out = <ApiAppointment>[];
+    var page = 1;
+    while (true) {
+      final p = await getAppointmentsPage(
+        doctorId: doctorId,
+        pageNumber: page,
+        pageSize: pageSize,
+        scheduledFromUtc: scheduledFromUtc,
+        scheduledToUtc: scheduledToUtc,
+      );
+      out.addAll(p.items);
+      if (p.items.length < pageSize || out.length >= p.totalCount) break;
+      page++;
+    }
+    out.sort((a, b) => a.scheduledAtUtc.compareTo(b.scheduledAtUtc));
+    return out;
   }
 
   /// Patient JWT: own profile; [ApiPatient.id] is the same clinical UUID as `patient_id` in the token.
   Future<ApiPatient> getPatientMe() async {
     final res = await _dio.get<Map<String, dynamic>>('/Patients/me');
+    return ApiPatient.fromJson(res.data ?? <String, dynamic>{});
+  }
+
+  /// Doctor/reception/admin: clinical profile by stable patient UUID.
+  Future<ApiPatient> getPatientById(String patientId) async {
+    ApiService.instance.syncAuthorizationHeaderFromSession();
+    final res = await _dio.get<Map<String, dynamic>>('/Patients/$patientId');
     return ApiPatient.fromJson(res.data ?? <String, dynamic>{});
   }
 
@@ -347,6 +398,8 @@ class BackendApiClient {
     required DateTime scheduledAtUtc,
     required int type,
     String? notes,
+    String? doctorNotes,
+    String? receptionNotes,
   }) async {
     final body = <String, dynamic>{
       'patientId': patientId,
@@ -359,6 +412,10 @@ class BackendApiClient {
     };
     if (doctorId != null) body['doctorId'] = doctorId;
     if (notes != null && notes.isNotEmpty) body['notes'] = notes;
+    if (doctorNotes != null && doctorNotes.isNotEmpty) body['doctorNotes'] = doctorNotes;
+    if (receptionNotes != null && receptionNotes.isNotEmpty) {
+      body['receptionNotes'] = receptionNotes;
+    }
 
     final res = await _dio.post<Map<String, dynamic>>(
       '/Appointments',
@@ -377,6 +434,8 @@ class BackendApiClient {
     required int status,
     int? doctorId,
     String? notes,
+    String? doctorNotes,
+    String? receptionNotes,
   }) async {
     final body = <String, dynamic>{
       'patientName': patientName,
@@ -384,15 +443,22 @@ class BackendApiClient {
       'scheduledAtUtc': scheduledAtUtc.toUtc().toIso8601String(),
       'type': type,
       'status': status,
+      'notes': notes,
+      'doctorNotes': doctorNotes,
+      'receptionNotes': receptionNotes,
     };
     if (doctorId != null) body['doctorId'] = doctorId;
-    body['notes'] = notes;
 
     final res = await _dio.put<Map<String, dynamic>>(
       '/Appointments/$id',
       data: body,
     );
     return ApiAppointment.fromJson(res.data ?? <String, dynamic>{});
+  }
+
+  /// Reception/admin: hard delete (optional alternative to [updateAppointment] with cancelled status).
+  Future<void> deleteAppointment(int id) async {
+    await _dio.delete<void>('/Appointments/$id');
   }
 
   /// Doctor JWT: start session (`InProgress`) or end session (`Completed`). Backend validates transitions.
@@ -413,10 +479,87 @@ class BackendApiClient {
     return ApiAppointment.fromJson(res.data ?? <String, dynamic>{});
   }
 
+  /// Doctor JWT: update session notes and/or type-specific JSON (`PATCH /Appointments/{id}/doctor-session`).
+  Future<ApiAppointment> patchDoctorAppointmentSession({
+    required int appointmentId,
+    String? doctorNotes,
+    String? specializedDataJson,
+    String? requestedTests,
+  }) async {
+    ApiService.instance.syncAuthorizationHeaderFromSession();
+    final body = <String, dynamic>{};
+    if (doctorNotes != null) body['doctorNotes'] = doctorNotes;
+    if (specializedDataJson != null) body['specializedDataJson'] = specializedDataJson;
+    if (requestedTests != null) body['requestedTests'] = requestedTests;
+    final res = await _dio.patch<Map<String, dynamic>>(
+      '/Appointments/$appointmentId/doctor-session',
+      data: body,
+    );
+    return ApiAppointment.fromJson(res.data ?? <String, dynamic>{});
+  }
+
   Future<List<Map<String, dynamic>>> getMedicalRecords() async {
     ApiService.instance.syncAuthorizationHeaderFromSession();
     final res = await _dio.get<List<dynamic>>('/MedicalRecords');
     return _listMap(res.data);
+  }
+
+  /// Single appointment with prescriptions and requested tests (`GET /Appointments/{id}`).
+  Future<ApiAppointment> getAppointmentById(int id) async {
+    ApiService.instance.syncAuthorizationHeaderFromSession();
+    final res = await _dio.get<Map<String, dynamic>>('/Appointments/$id');
+    return ApiAppointment.fromJson(res.data ?? <String, dynamic>{});
+  }
+
+  /// Patient: aggregated diagnosis, prescriptions, documents (`GET /Patients/me/medical-history`).
+  Future<PatientMedicalHistory> getPatientMedicalHistory() async {
+    final res = await _dio.get<Map<String, dynamic>>('/Patients/me/medical-history');
+    return PatientMedicalHistory.fromJson(res.data ?? <String, dynamic>{});
+  }
+
+  /// Patient: multipart upload; optional [appointmentId] links file to a visit for the doctor.
+  Future<ApiMedicalFile> uploadPatientMedicalFile({
+    int? appointmentId,
+    required String filePath,
+    required String fileName,
+  }) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+    });
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/MedicalFiles',
+      data: formData,
+      queryParameters: appointmentId != null
+          ? <String, dynamic>{'appointmentId': appointmentId}
+          : null,
+    );
+    return ApiMedicalFile.fromJson(res.data ?? <String, dynamic>{});
+  }
+
+  /// Doctor/staff: patient uploads for this appointment.
+  Future<List<ApiMedicalFile>> getAppointmentPatientUploads(int appointmentId) async {
+    ApiService.instance.syncAuthorizationHeaderFromSession();
+    final res = await _dio.get<List<dynamic>>(
+      '/Appointments/$appointmentId/patient-uploads',
+    );
+    final raw = res.data ?? const <dynamic>[];
+    return raw
+        .whereType<Map>()
+        .map((e) => ApiMedicalFile.fromJson(Map<String, dynamic>.from(e)))
+        .toList(growable: false);
+  }
+
+  /// Doctor: replace appointment-level prescription lines (patient reminder schedule).
+  Future<ApiAppointment> replaceAppointmentPrescriptions({
+    required int appointmentId,
+    required List<Map<String, dynamic>> lines,
+  }) async {
+    ApiService.instance.syncAuthorizationHeaderFromSession();
+    final res = await _dio.put<Map<String, dynamic>>(
+      '/Appointments/$appointmentId/prescriptions',
+      data: <String, dynamic>{'lines': lines},
+    );
+    return ApiAppointment.fromJson(res.data ?? <String, dynamic>{});
   }
 
   Future<List<Map<String, dynamic>>> getNotifications() async {
@@ -536,6 +679,14 @@ class BackendApiClient {
       return a.publicUrl!;
     }
     final path = a.filePath.replaceFirst(RegExp(r'^/+'), '');
+    return '${ApiService.instance.publicOrigin}/$path';
+  }
+
+  String medicalFileUrl(ApiMedicalFile f) {
+    if (f.publicUrl != null && f.publicUrl!.isNotEmpty) {
+      return f.publicUrl!;
+    }
+    final path = f.fileUrl.replaceFirst(RegExp(r'^/+'), '');
     return '${ApiService.instance.publicOrigin}/$path';
   }
 

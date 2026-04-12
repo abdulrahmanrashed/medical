@@ -215,7 +215,14 @@ public class PatientService : IPatientService
             patient.InsuranceDetails = string.IsNullOrWhiteSpace(dto.InsuranceDetails) ? null : dto.InsuranceDetails.Trim();
 
         if (dto.ChronicDiseases is not null)
-            patient.ChronicDiseases = string.IsNullOrWhiteSpace(dto.ChronicDiseases) ? null : dto.ChronicDiseases.Trim();
+        {
+            patient.ChronicDiseases = dto.ChronicDiseases
+                .Select(x => x.Trim())
+                .Where(x => x.Length > 0)
+                .Take(50)
+                .ToList();
+            patient.HasChronicCondition = patient.ChronicDiseases.Count > 0;
+        }
 
         patient.UpdatedAtUtc = DateTime.UtcNow;
         _patients.Update(patient);
@@ -265,7 +272,7 @@ public class PatientService : IPatientService
             DateOfBirth = p.DateOfBirth,
             InsuranceStatus = p.InsuranceStatus,
             InsuranceDetails = p.InsuranceDetails,
-            ChronicDiseases = p.ChronicDiseases
+            ChronicDiseases = p.ChronicDiseases.Count > 0 ? p.ChronicDiseases : null
         };
     }
 }

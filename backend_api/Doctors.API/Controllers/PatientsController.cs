@@ -35,6 +35,16 @@ public class PatientsController : ControllerBase
         return Ok(await _patients.GetMyProfileAsync(cancellationToken));
     }
 
+    /// <summary>Patient: diagnosis snapshot, active appointment prescriptions, uploads, and latest requested tests.</summary>
+    [HttpGet("me/medical-history")]
+    [Authorize(Roles = AppRoles.Patient)]
+    public async Task<ActionResult<PatientMedicalHistoryDto>> GetMyMedicalHistory(
+        [FromServices] IPatientMedicalHistoryService history,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await history.GetMyMedicalHistoryAsync(cancellationToken));
+    }
+
     [HttpGet]
     [Authorize(Roles = $"{AppRoles.Admin},{AppRoles.Reception}")]
     public async Task<ActionResult<IReadOnlyList<PatientDto>>> GetAll(CancellationToken cancellationToken)

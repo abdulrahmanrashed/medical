@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../core/layout/adaptive_sheet.dart';
 import '../../core/layout/responsive.dart';
 import '../../core/network/backend_api_client.dart';
 import 'clinic_owner_ui.dart';
 
-const Color _kPrimary = Color(0xFF004D40);
 
 /// Use the [BuildContext] from the screen that owns the FAB (e.g. [Scaffold]).
 Future<void> showAddClinicReceptionistSheet(
@@ -13,11 +13,9 @@ Future<void> showAddClinicReceptionistSheet(
   required int clinicId,
   required Future<void> Function() onSuccess,
 }) async {
-  final ok = await showModalBottomSheet<bool>(
+  final ok = await showAdaptiveSheet<bool>(
     context: anchorContext,
-    isScrollControlled: true,
-    showDragHandle: true,
-    useSafeArea: true,
+    maxWidth: 520,
     builder: (ctx) => _AddReceptionistFormSheet(clinicId: clinicId),
   );
 
@@ -142,7 +140,7 @@ class _AddReceptionistFormSheetState extends State<_AddReceptionistFormSheet> {
               ),
               const SizedBox(height: 20),
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: _kPrimary),
+                style: FilledButton.styleFrom(backgroundColor: ClinicOwnerUi.primary),
                 onPressed: _submitting ? null : _submit,
                 child: _submitting
                     ? const SizedBox(
@@ -181,6 +179,8 @@ class ClinicReceptionistsPanel extends StatefulWidget {
 class _ClinicReceptionistsPanelState extends State<ClinicReceptionistsPanel> {
   late Future<List<Map<String, dynamic>>> _future;
 
+  int? _selectedReceptionistIndex;
+
   @override
   void initState() {
     super.initState();
@@ -196,6 +196,7 @@ class _ClinicReceptionistsPanelState extends State<ClinicReceptionistsPanel> {
   Future<void> _reload() async {
     setState(() {
       _future = BackendApiClient.instance.getClinicReceptionists(widget.clinicId);
+      _selectedReceptionistIndex = null;
     });
     await _future;
   }
@@ -253,8 +254,72 @@ class _ClinicReceptionistsPanelState extends State<ClinicReceptionistsPanel> {
         }
         return LayoutBuilder(
           builder: (context, constraints) {
-            final cols = Responsive.gridColumnCount(constraints.maxWidth);
+            final master = Responsive.useMasterLayout(constraints.maxWidth);
             final bottomInset = widget.embedded ? 24.0 : 100.0;
+            if (master) {
+              final idx = (_selectedReceptionistIndex ?? 0).clamp(0, list.length - 1);
+              final r = list[idx];
+              return RefreshIndicator(
+                onRefresh: _reload,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            width: 300,
+                            child: ColoredBox(
+                              color: ClinicOwnerUi.surface,
+                              child: ListView.separated(
+                                padding: EdgeInsets.fromLTRB(
+                                  padding.left,
+                                  padding.top,
+                                  8,
+                                  padding.bottom + bottomInset,
+                                ),
+                                itemCount: list.length,
+                                separatorBuilder: (context, index) => const Divider(height: 1),
+                                itemBuilder: (context, i) {
+                                  final item = list[i];
+                                  final name =
+                                      '${item['firstName'] ?? ''} ${item['lastName'] ?? ''}'.trim();
+                                  final sel = i == idx;
+                                  return ListTile(
+                                    selected: sel,
+                                    title: Text(
+                                      name.isEmpty ? '—' : name,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    subtitle: Text(
+                                      item['email']?.toString() ?? '',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    onTap: () => setState(() => _selectedReceptionistIndex = i),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          const VerticalDivider(width: 1),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: padding.copyWith(top: 0, bottom: bottomInset),
+                              child: _receptionistCard(r),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+            final cols = Responsive.gridColumnCount(constraints.maxWidth);
             return RefreshIndicator(
               onRefresh: _reload,
               child: cols == 1
@@ -319,7 +384,7 @@ class _ClinicReceptionistsPanelState extends State<ClinicReceptionistsPanel> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddSheet(context),
-        backgroundColor: _kPrimary,
+        backgroundColor: ClinicOwnerUi.primary,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.person_add),
         label: const Text('Add receptionist'),

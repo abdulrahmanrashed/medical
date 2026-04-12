@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/layout/responsive.dart';
+import '../../core/layout/responsive_main_content.dart';
 import '../../core/network/backend_api_client.dart';
 import '../../widgets/add_patient_draft_card.dart';
 import 'admin_billing_history_screen.dart';
@@ -36,7 +37,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isTablet = Responsive.isTablet(constraints.maxWidth);
+        final isTablet = Responsive.useMasterLayout(constraints.maxWidth);
         return Scaffold(
           appBar: AppBar(
             title: Text('Admin · ${_titles[_index]}'),
@@ -82,7 +83,12 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                       ],
                     ),
                     const VerticalDivider(width: 1),
-                    Expanded(child: _body()),
+                    Expanded(
+                      child: ResponsiveMainContent(
+                        width: constraints.maxWidth,
+                        child: _body(),
+                      ),
+                    ),
                   ],
                 )
               : _body(),

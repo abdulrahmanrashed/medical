@@ -149,7 +149,9 @@ public class AuthService : IAuthService
             existing.DateOfBirth = request.DateOfBirth;
             existing.InsuranceStatus = request.InsuranceStatus;
             existing.InsuranceDetails = request.InsuranceDetails;
-            existing.ChronicDiseases = request.ChronicDiseases;
+            var chronic = ChronicDiseasesInputParser.FromFreeText(request.ChronicDiseases);
+            existing.ChronicDiseases = chronic;
+            existing.HasChronicCondition = chronic.Count > 0;
             existing.PasswordHash = _passwordHasher.HashPassword(user, request.Password);
             existing.RegistrationStatus = PatientRegistrationStatus.Completed;
             existing.UserId = user.Id;
@@ -179,6 +181,7 @@ public class AuthService : IAuthService
 
             await _userManager.AddToRoleAsync(user, AppRoles.Patient);
 
+            var chronicNew = ChronicDiseasesInputParser.FromFreeText(request.ChronicDiseases);
             var patient = new Patient
             {
                 Id = Guid.NewGuid(),
@@ -188,7 +191,8 @@ public class AuthService : IAuthService
                 DateOfBirth = request.DateOfBirth,
                 InsuranceStatus = request.InsuranceStatus,
                 InsuranceDetails = request.InsuranceDetails,
-                ChronicDiseases = request.ChronicDiseases,
+                ChronicDiseases = chronicNew,
+                HasChronicCondition = chronicNew.Count > 0,
                 RegistrationStatus = PatientRegistrationStatus.Completed,
                 UserId = user.Id,
                 PasswordHash = _passwordHasher.HashPassword(user, request.Password),

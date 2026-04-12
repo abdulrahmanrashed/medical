@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/layout/responsive.dart';
+import '../../core/layout/responsive_main_content.dart';
 import '../../core/network/session_manager.dart';
 import '../reception/reception_my_doctors_panel.dart' show ReceptionMyDoctorsPanel, showReceptionAddDoctorSheet;
 import 'clinic_receptionists_panel.dart';
@@ -22,10 +23,10 @@ class _ClinicOwnerShellScreenState extends State<ClinicOwnerShellScreen> {
   Future<void> Function()? _reloadReceptionists;
 
   static const _titles = [
-    'Clinic dashboard',
-    'Manage doctors',
-    'Manage schedules',
-    'Manage receptionists',
+    'Dashboard',
+    'My doctors',
+    'Schedule',
+    'Reception',
   ];
 
   @override
@@ -35,7 +36,7 @@ class _ClinicOwnerShellScreenState extends State<ClinicOwnerShellScreen> {
       return Scaffold(
         backgroundColor: ClinicOwnerUi.surface,
         appBar: AppBar(
-          title: const Text('Clinic dashboard'),
+          title: const Text('Dashboard'),
           backgroundColor: ClinicOwnerUi.surface,
           surfaceTintColor: Colors.transparent,
         ),
@@ -54,17 +55,11 @@ class _ClinicOwnerShellScreenState extends State<ClinicOwnerShellScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final w = constraints.maxWidth;
-        final useRail = Responsive.isTablet(w);
-        final maxW = Responsive.contentMaxWidth(w);
+        final useRail = Responsive.useMasterLayout(w);
         final padding = Responsive.screenPadding(context);
 
         Widget main = _buildMainContent(clinicId, w, padding);
-        main = Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxW),
-            child: main,
-          ),
-        );
+        main = ResponsiveMainContent(width: w, child: main);
 
         return Scaffold(
           backgroundColor: ClinicOwnerUi.surface,
@@ -79,11 +74,32 @@ class _ClinicOwnerShellScreenState extends State<ClinicOwnerShellScreen> {
               : NavigationBar(
                   selectedIndex: _index,
                   onDestinationSelected: (i) => setState(() => _index = i),
+                  height: 72,
+                  labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+                  indicatorColor: ClinicOwnerUi.primary.withValues(alpha: 0.14),
+                  backgroundColor: ClinicOwnerUi.surface,
+                  surfaceTintColor: Colors.transparent,
                   destinations: const [
-                    NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Home'),
-                    NavigationDestination(icon: Icon(Icons.medical_services_outlined), label: 'Doctors'),
-                    NavigationDestination(icon: Icon(Icons.calendar_month_outlined), label: 'Schedules'),
-                    NavigationDestination(icon: Icon(Icons.groups_outlined), label: 'Reception'),
+                    NavigationDestination(
+                      icon: Icon(Icons.dashboard_outlined),
+                      selectedIcon: Icon(Icons.dashboard),
+                      label: 'Dashboard',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.medical_services_outlined),
+                      selectedIcon: Icon(Icons.medical_services),
+                      label: 'My doctors',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.calendar_month_outlined),
+                      selectedIcon: Icon(Icons.calendar_month),
+                      label: 'Schedule',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.groups_outlined),
+                      selectedIcon: Icon(Icons.groups),
+                      label: 'Reception',
+                    ),
                   ],
                 ),
           body: useRail
@@ -105,17 +121,17 @@ class _ClinicOwnerShellScreenState extends State<ClinicOwnerShellScreen> {
                         NavigationRailDestination(
                           icon: Icon(Icons.dashboard_outlined),
                           selectedIcon: Icon(Icons.dashboard),
-                          label: Text('Home'),
+                          label: Text('Dashboard'),
                         ),
                         NavigationRailDestination(
                           icon: Icon(Icons.medical_services_outlined),
                           selectedIcon: Icon(Icons.medical_services),
-                          label: Text('Doctors'),
+                          label: Text('My doctors'),
                         ),
                         NavigationRailDestination(
                           icon: Icon(Icons.calendar_month_outlined),
                           selectedIcon: Icon(Icons.calendar_month),
-                          label: Text('Schedules'),
+                          label: Text('Schedule'),
                         ),
                         NavigationRailDestination(
                           icon: Icon(Icons.groups_outlined),
@@ -273,9 +289,14 @@ class _DashboardGrid extends StatelessWidget {
                   delegate: SliverChildBuilderDelegate(
                     (context, i) {
                       final c = cards[i];
+                      final mobile = !Responsive.useMasterLayout(width);
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: _DashboardActionCard(data: c, onTap: () => onSelect(c.index)),
+                        padding: EdgeInsets.only(bottom: mobile ? 16 : 14),
+                        child: _DashboardActionCard(
+                          data: c,
+                          onTap: () => onSelect(c.index),
+                          touchComfort: mobile,
+                        ),
                       );
                     },
                     childCount: cards.length,
@@ -291,7 +312,12 @@ class _DashboardGrid extends StatelessWidget {
                   delegate: SliverChildBuilderDelegate(
                     (context, i) {
                       final c = cards[i];
-                      return _DashboardActionCard(data: c, onTap: () => onSelect(c.index));
+                      final mobile = !Responsive.useMasterLayout(width);
+                      return _DashboardActionCard(
+                        data: c,
+                        onTap: () => onSelect(c.index),
+                        touchComfort: mobile,
+                      );
                     },
                     childCount: cards.length,
                   ),
@@ -317,49 +343,63 @@ class _DashCardData {
 }
 
 class _DashboardActionCard extends StatelessWidget {
-  const _DashboardActionCard({required this.data, required this.onTap});
+  const _DashboardActionCard({
+    required this.data,
+    required this.onTap,
+    this.touchComfort = false,
+  });
 
   final _DashCardData data;
   final VoidCallback onTap;
 
+  /// Wider padding and targets on narrow / mobile layouts.
+  final bool touchComfort;
+
   @override
   Widget build(BuildContext context) {
+    final hPad = touchComfort ? 20.0 : 18.0;
+    final vPad = touchComfort ? 22.0 : 18.0;
+    final avatarR = touchComfort ? 30.0 : 28.0;
+    final iconSz = touchComfort ? 30.0 : 28.0;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         child: Ink(
           decoration: ClinicOwnerUi.premiumCardDecoration(),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+            padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 CircleAvatar(
-                  radius: 28,
+                  radius: avatarR,
                   backgroundColor: ClinicOwnerUi.primary.withValues(alpha: 0.12),
                   foregroundColor: ClinicOwnerUi.primary,
-                  child: Icon(data.icon, size: 28),
+                  child: Icon(data.icon, size: iconSz),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: touchComfort ? 18 : 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         data.title,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w800,
                               color: ClinicOwnerUi.onSurfaceTitle,
+                              fontSize: touchComfort ? 17 : null,
                             ),
                       ),
-                      const SizedBox(height: 6),
+                      SizedBox(height: touchComfort ? 8 : 6),
                       Text(
                         data.subtitle,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: ClinicOwnerUi.onSurfaceMuted,
-                              height: 1.35,
+                              height: 1.4,
+                              fontSize: touchComfort ? 15 : null,
                             ),
                       ),
                     ],

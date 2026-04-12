@@ -78,7 +78,8 @@ class _PatientRegisterScreenState extends State<PatientRegisterScreen> {
         _emailCtrl.text = result.email ?? '';
         _insurance = result.insuranceStatus;
         _insuranceDetailsCtrl.text = result.insuranceDetails ?? '';
-        _chronicCtrl.text = result.chronicDiseases ?? '';
+        _chronicCtrl.text =
+            result.chronicDiseases.isEmpty ? '' : result.chronicDiseases.join(', ');
         if (result.patientId != null && result.patientId!.isNotEmpty) {
           await PatientLocalStorage.instance.savePatientId(result.patientId!);
         }

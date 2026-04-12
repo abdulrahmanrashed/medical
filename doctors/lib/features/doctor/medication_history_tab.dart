@@ -132,7 +132,6 @@ class _MedicationHistoryTabState extends State<MedicationHistoryTab> {
           ),
           const SizedBox(height: 12),
           Card(
-            elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
               side: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
@@ -320,7 +319,6 @@ class _SessionMedCard extends StatelessWidget {
     final visit = first.visitUtc;
 
     return Card(
-      elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: Colors.black.withValues(alpha: 0.1)),

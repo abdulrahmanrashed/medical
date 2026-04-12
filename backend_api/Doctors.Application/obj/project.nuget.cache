@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "w9thVAdC0dw=",
+  "dgSpecHash": "Y0wFTCDw3Eo=",
   "success": true,
-  "projectFilePath": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Application\\Doctors.Application.csproj",
+  "projectFilePath": "E:\\users\\abood\\cursor_project\\backend_api\\Doctors.Application\\Doctors.Application.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\abood\\.nuget\\packages\\automapper\\12.0.1\\automapper.12.0.1.nupkg.sha512",
     "C:\\Users\\abood\\.nuget\\packages\\automapper.extensions.microsoft.dependencyinjection\\12.0.1\\automapper.extensions.microsoft.dependencyinjection.12.0.1.nupkg.sha512",

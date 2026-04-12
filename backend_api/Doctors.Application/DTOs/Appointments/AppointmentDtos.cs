@@ -16,6 +16,12 @@ public class AppointmentDto
     public AppointmentType Type { get; set; }
     public AppointmentStatus Status { get; set; }
     public string? Notes { get; set; }
+    public string? DoctorNotes { get; set; }
+    public string? ReceptionNotes { get; set; }
+    public string? SpecializedDataJson { get; set; }
+    public string? RequestedTests { get; set; }
+    public IReadOnlyList<AppointmentPrescriptionDto> AppointmentPrescriptions { get; set; } =
+        Array.Empty<AppointmentPrescriptionDto>();
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? UpdatedAtUtc { get; set; }
 }
@@ -30,6 +36,10 @@ public class CreateAppointmentDto
     public DateTime ScheduledAtUtc { get; set; }
     public AppointmentType Type { get; set; }
     public string? Notes { get; set; }
+    public string? DoctorNotes { get; set; }
+    public string? ReceptionNotes { get; set; }
+    public string? SpecializedDataJson { get; set; }
+    public string? RequestedTests { get; set; }
 }
 
 public class UpdateAppointmentDto
@@ -41,6 +51,18 @@ public class UpdateAppointmentDto
     public AppointmentType Type { get; set; }
     public AppointmentStatus Status { get; set; }
     public string? Notes { get; set; }
+    public string? DoctorNotes { get; set; }
+    public string? ReceptionNotes { get; set; }
+    public string? SpecializedDataJson { get; set; }
+    public string? RequestedTests { get; set; }
+}
+
+/// <summary>Doctor-only: session notes and type-specific JSON (no full appointment edit).</summary>
+public class DoctorUpdateAppointmentSessionDto
+{
+    public string? DoctorNotes { get; set; }
+    public string? SpecializedDataJson { get; set; }
+    public string? RequestedTests { get; set; }
 }
 
 /// <summary>Doctor-only status transitions (start session / end session).</summary>

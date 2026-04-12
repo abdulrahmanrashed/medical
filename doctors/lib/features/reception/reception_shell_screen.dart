@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/formatting/appointment_time_display.dart';
+import '../../core/layout/adaptive_sheet.dart';
 import '../../core/layout/responsive.dart';
+import '../../core/layout/responsive_main_content.dart';
 import '../../core/models/backend_models.dart';
+import '../../core/theme/teal_modern_style.dart';
 import '../../widgets/add_patient_draft_card.dart';
 import 'reception_add_appointment_sheet.dart';
 import 'reception_dashboard_controller.dart';
@@ -50,7 +53,7 @@ class _ReceptionShellScreenState extends State<ReceptionShellScreen> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isTablet = Responsive.isTablet(constraints.maxWidth);
+        final isTablet = Responsive.useMasterLayout(constraints.maxWidth);
         return Consumer<ReceptionDashboardController>(
           builder: (context, dash, _) {
             final pendingCount = dash.pendingAppointments.length;
@@ -100,7 +103,12 @@ class _ReceptionShellScreenState extends State<ReceptionShellScreen> {
                           ],
                         ),
                         const VerticalDivider(width: 1),
-                        Expanded(child: _body(context, dash)),
+                        Expanded(
+                          child: ResponsiveMainContent(
+                            width: constraints.maxWidth,
+                            child: _body(context, dash),
+                          ),
+                        ),
                       ],
                     )
                   : _body(context, dash),
@@ -210,31 +218,111 @@ class _AppointmentsPanel extends StatelessWidget {
 
     return RefreshIndicator(
       onRefresh: () => dash.refresh(),
-      child: dash.appointments.isEmpty
+      child: dash.activeAppointmentsForTimeline.isEmpty
           ? ListView(
               padding: Responsive.screenPadding(context),
-              children: const [
-                SizedBox(height: 48),
-                Center(child: Text('No appointments yet. Tap Add appointment.')),
+              children: [
+                const SizedBox(height: 48),
+                Center(
+                  child: Text(
+                    dash.appointments.isEmpty
+                        ? 'No appointments yet. Tap Add appointment.'
+                        : 'No active appointments. Completed visits disappear from this list a few seconds after the doctor ends the session.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ],
             )
           : ListView.builder(
               padding: Responsive.screenPadding(context),
-              itemCount: dash.appointments.length,
+              itemCount: dash.activeAppointmentsForTimeline.length,
               itemBuilder: (context, i) {
-                final ap = dash.appointments[i];
+                final ap = dash.activeAppointmentsForTimeline[i];
+                final busy = dash.busyAppointmentId == ap.id;
                 return Card(
                   key: ValueKey(ap.id),
-                  child: ListTile(
-                    leading: Icon(_statusIcon(ap.status)),
-                    title: Text(ap.patientName),
-                    subtitle: Text(
-                      '${formatAppointmentDateTimeLine(ap.scheduledAtUtc)} · ${_statusLabel(ap.status)}\n'
-                      '${ap.clinicName ?? 'Clinic'} · ${_typeLabel(ap.type)}'
-                      '${ap.doctorName != null && ap.doctorName!.isNotEmpty ? ' · ${ap.doctorName}' : ''}\n'
-                      '${ap.phoneNumber}',
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(_statusIcon(ap.status), color: TealModernStyle.deepTeal),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                ap.patientName,
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${formatAppointmentDateTimeLine(ap.scheduledAtUtc)} · ${_statusLabel(ap.status)}',
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                        Text(
+                          '${ap.clinicName ?? 'Clinic'} · ${_typeLabel(ap.type)}'
+                          '${ap.doctorName != null && ap.doctorName!.isNotEmpty ? ' · ${ap.doctorName}' : ''}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                        if (ap.phoneNumber.isNotEmpty)
+                          Text(
+                            ap.phoneNumber,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        if (ap.receptionNotes != null && ap.receptionNotes!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Reception notes',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: TealModernStyle.midTeal,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          Text(
+                            ap.receptionNotes!,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            TealModernStyle.primaryButton(
+                              onPressed: busy
+                                  ? null
+                                  : () => _editAppointmentTime(context, dash, ap),
+                              child: const Text('Edit time'),
+                            ),
+                            OutlinedButton(
+                              onPressed: busy
+                                  ? null
+                                  : () => _confirmCancelAppointment(context, dash, ap),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: TealModernStyle.deepTeal,
+                                side: const BorderSide(color: TealModernStyle.midTeal, width: 1.5),
+                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                              ),
+                              child: busy
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Text('Cancel appointment'),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    isThreeLine: true,
                   ),
                 );
               },
@@ -263,8 +351,143 @@ class _AppointmentsPanel extends StatelessWidget {
   static String _typeLabel(ApiAppointmentType t) => switch (t) {
         ApiAppointmentType.general => 'General',
         ApiAppointmentType.specificDoctor => 'Specific doctor',
+        ApiAppointmentType.pregnancyFollowUp => 'Pregnancy follow-up',
+        ApiAppointmentType.diabetes => 'Diabetes',
       };
+}
 
+Future<void> _editAppointmentTime(
+  BuildContext context,
+  ReceptionDashboardController dash,
+  ApiAppointment ap,
+) async {
+  DateTime scheduledUtc = ap.scheduledAtUtc;
+  final confirmedUtc = await showDialog<DateTime>(
+    context: context,
+    builder: (dialogCtx) {
+      return StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final scheduledLocal = scheduledUtc.toLocal();
+          return AlertDialog(
+            title: Text('Edit time · ${ap.patientName}'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Visit time:', style: Theme.of(ctx).textTheme.bodyMedium),
+                const SizedBox(height: 8),
+                Text(
+                  formatLocalWallDateTimeLine(scheduledLocal),
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                TextButton.icon(
+                  onPressed: () async {
+                    final now = DateTime.now();
+                    final d = await showDatePicker(
+                      context: dialogCtx,
+                      initialDate: DateTime(
+                        scheduledLocal.year,
+                        scheduledLocal.month,
+                        scheduledLocal.day,
+                      ),
+                      firstDate: now.subtract(const Duration(days: 1)),
+                      lastDate: now.add(const Duration(days: 365)),
+                    );
+                    if (d == null) return;
+                    if (!dialogCtx.mounted) return;
+                    final t = await showTimePicker(
+                      context: dialogCtx,
+                      initialTime: TimeOfDay(
+                        hour: scheduledLocal.hour,
+                        minute: scheduledLocal.minute,
+                      ),
+                    );
+                    if (t == null) return;
+                    scheduledUtc = DateTime(
+                      d.year,
+                      d.month,
+                      d.day,
+                      t.hour,
+                      t.minute,
+                    ).toUtc();
+                    setDialogState(() {});
+                  },
+                  icon: const Icon(Icons.edit_calendar_outlined),
+                  label: const Text('Change time'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('Close'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogCtx, scheduledUtc),
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+  if (confirmedUtc == null || !context.mounted) return;
+  try {
+    await dash.updateAppointmentTimeKeepingStatus(ap, confirmedUtc);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Updated to ${formatAppointmentDateTimeLine(confirmedUtc)}')),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString())),
+    );
+  }
+}
+
+Future<void> _confirmCancelAppointment(
+  BuildContext context,
+  ReceptionDashboardController dash,
+  ApiAppointment ap,
+) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Cancel appointment?'),
+      content: Text('Mark ${ap.patientName}\'s visit as cancelled?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Back'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          style: FilledButton.styleFrom(
+            backgroundColor: TealModernStyle.deepTeal,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Confirm'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  try {
+    await dash.cancelAppointment(ap);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Appointment cancelled.')),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString())),
+    );
+  }
 }
 
 class _PendingRequestsPanel extends StatelessWidget {
@@ -340,24 +563,12 @@ class _PendingRequestsPanel extends StatelessWidget {
                         Row(
                           children: [
                             Expanded(
-                              child: FilledButton(
+                              child: TealModernStyle.primaryButton(
                                 onPressed: busy
                                     ? null
                                     : () => _onApprove(context, a),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: const Color(0xFF004D40),
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: busy
-                                    ? const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Text('Approve'),
+                                loading: busy,
+                                child: const Text('Approve'),
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -483,10 +694,9 @@ class _PendingRequestsPanel extends StatelessWidget {
     BuildContext anchorContext,
     ApiAppointment a,
   ) async {
-    await showModalBottomSheet<void>(
+    await showAdaptiveSheet<void>(
       context: anchorContext,
-      showDragHandle: true,
-      useSafeArea: true,
+      maxWidth: 400,
       builder: (sheetCtx) {
         return SafeArea(
           child: Column(
@@ -603,9 +813,7 @@ class _LiveFeedPanel extends StatelessWidget {
                   );
                 }
                 final e = items[i - 1];
-                final local = e.timestampUtc.toLocal();
-                final time =
-                    '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+                final time = formatAppointmentTimeHm(e.timestampUtc);
                 return Card(
                   child: ListTile(
                     leading: Icon(e.icon, color: const Color(0xFF004D40)),

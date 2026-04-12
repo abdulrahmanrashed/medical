@@ -17,4 +17,14 @@ public class Appointment : BaseEntity
     public AppointmentType Type { get; set; }
     public AppointmentStatus Status { get; set; }
     public string? Notes { get; set; }
+    public string? DoctorNotes { get; set; }
+    public string? ReceptionNotes { get; set; }
+
+    /// <summary>Optional JSON object with type-specific nullable fields (e.g. weeks, fetalHeartRate, a1cLevel, weightKg).</summary>
+    public string? SpecializedDataJson { get; set; }
+
+    /// <summary>Free-text list of lab or imaging tests requested for this visit (before results are uploaded).</summary>
+    public string? RequestedTests { get; set; }
+
+    public ICollection<AppointmentPrescription> AppointmentPrescriptions { get; set; } = new List<AppointmentPrescription>();
 }

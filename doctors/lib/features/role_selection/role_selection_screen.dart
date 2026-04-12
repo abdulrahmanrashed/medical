@@ -272,9 +272,9 @@ class _ServiceRoleCardState extends State<_ServiceRoleCard>
       scale: _scale,
       child: Material(
         color: Colors.white,
-        elevation: 2,
-        shadowColor: Colors.black.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
+        elevation: 1,
+        shadowColor: Colors.black.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: widget.onTap,
           onHighlightChanged: (pressed) {
@@ -284,12 +284,12 @@ class _ServiceRoleCardState extends State<_ServiceRoleCard>
               _pressController.reverse();
             }
           },
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           splashColor: spec.accent.withValues(alpha: 0.12),
           highlightColor: spec.accent.withValues(alpha: 0.06),
           child: Ink(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(color: spec.accent.withValues(alpha: 0.2)),
             ),
             child: Padding(

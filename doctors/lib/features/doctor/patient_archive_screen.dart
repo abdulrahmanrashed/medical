@@ -95,8 +95,10 @@ class PatientArchiveScreenState extends State<PatientArchiveScreen> {
         byPatient.putIfAbsent(k, () => []).add(r);
       }
 
-      final rawAppts = await BackendApiClient.instance.getAppointments(doctorId: doctorId);
-      final appts = rawAppts.map(ApiAppointment.fromJson).toList();
+      final appts = await BackendApiClient.instance.getAllAppointmentsAccumulated(
+        doctorId: doctorId,
+        pageSize: 80,
+      );
       final phoneByPatient = <String, String>{};
       for (final a in appts) {
         final k = a.patientId.trim().toLowerCase();

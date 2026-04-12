@@ -53,7 +53,9 @@ public class UpdatePatientProfileValidator : AbstractValidator<UpdatePatientProf
             .When(x => x.FullName is not null);
         RuleFor(x => x.Email!).EmailAddress().When(x => !string.IsNullOrWhiteSpace(x.Email));
         RuleFor(x => x.InsuranceDetails).MaximumLength(4000).When(x => x.InsuranceDetails is not null);
-        RuleFor(x => x.ChronicDiseases).MaximumLength(4000).When(x => x.ChronicDiseases is not null);
+        RuleForEach(x => x.ChronicDiseases!)
+            .MaximumLength(500)
+            .When(x => x.ChronicDiseases is not null);
     }
 
     private static bool HasAnyField(UpdatePatientProfileDto d) =>
