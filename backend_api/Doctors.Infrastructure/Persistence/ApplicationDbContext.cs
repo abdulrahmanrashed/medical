@@ -53,11 +53,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .HasFilter("[UserId] IS NOT NULL");
             e.Property(p => p.ChronicDiseases)
                 .HasConversion(ChronicDiseasesValueConverter.Create())
+                .IsRequired(false)
                 .Metadata.SetValueComparer(
                     new ValueComparer<List<string>>(
                         (a, b) => (a ?? new List<string>()).SequenceEqual(b ?? new List<string>()),
-                        v => v.Aggregate(0, (h, x) => HashCode.Combine(h, x.GetHashCode(StringComparison.Ordinal))),
-                        v => v.ToList()));
+                        v => (v ?? new List<string>())
+                            .Aggregate(0, (h, x) => HashCode.Combine(h, x.GetHashCode(StringComparison.Ordinal))),
+                        v => (v ?? new List<string>()).ToList()));
             e.Property(p => p.RegistrationStatus)
                 .HasMaxLength(20)
                 .HasConversion(

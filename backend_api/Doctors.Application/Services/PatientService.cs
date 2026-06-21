@@ -216,12 +216,13 @@ public class PatientService : IPatientService
 
         if (dto.ChronicDiseases is not null)
         {
-            patient.ChronicDiseases = dto.ChronicDiseases
+            var chronicDiseases = dto.ChronicDiseases
                 .Select(x => x.Trim())
                 .Where(x => x.Length > 0)
                 .Take(50)
                 .ToList();
-            patient.HasChronicCondition = patient.ChronicDiseases.Count > 0;
+            patient.ChronicDiseases = chronicDiseases.Count == 0 ? null : chronicDiseases;
+            patient.HasChronicCondition = chronicDiseases.Count > 0;
         }
 
         patient.UpdatedAtUtc = DateTime.UtcNow;
@@ -272,7 +273,7 @@ public class PatientService : IPatientService
             DateOfBirth = p.DateOfBirth,
             InsuranceStatus = p.InsuranceStatus,
             InsuranceDetails = p.InsuranceDetails,
-            ChronicDiseases = p.ChronicDiseases.Count > 0 ? p.ChronicDiseases : null
+            ChronicDiseases = p.ChronicDiseases is { Count: > 0 } ? p.ChronicDiseases : null
         };
     }
 }

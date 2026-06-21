@@ -148,10 +148,10 @@ public class AuthService : IAuthService
             existing.Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
             existing.DateOfBirth = request.DateOfBirth;
             existing.InsuranceStatus = request.InsuranceStatus;
-            existing.InsuranceDetails = request.InsuranceDetails;
-            var chronic = ChronicDiseasesInputParser.FromFreeText(request.ChronicDiseases);
+            existing.InsuranceDetails = NormalizeNullableText(request.InsuranceDetails);
+            var chronic = ParseChronicDiseasesOrNull(request.ChronicDiseases);
             existing.ChronicDiseases = chronic;
-            existing.HasChronicCondition = chronic.Count > 0;
+            existing.HasChronicCondition = chronic is { Count: > 0 };
             existing.PasswordHash = _passwordHasher.HashPassword(user, request.Password);
             existing.RegistrationStatus = PatientRegistrationStatus.Completed;
             existing.UserId = user.Id;
@@ -181,7 +181,7 @@ public class AuthService : IAuthService
 
             await _userManager.AddToRoleAsync(user, AppRoles.Patient);
 
-            var chronicNew = ChronicDiseasesInputParser.FromFreeText(request.ChronicDiseases);
+            var chronicNew = ParseChronicDiseasesOrNull(request.ChronicDiseases);
             var patient = new Patient
             {
                 Id = Guid.NewGuid(),
@@ -190,9 +190,9 @@ public class AuthService : IAuthService
                 Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim(),
                 DateOfBirth = request.DateOfBirth,
                 InsuranceStatus = request.InsuranceStatus,
-                InsuranceDetails = request.InsuranceDetails,
+                InsuranceDetails = NormalizeNullableText(request.InsuranceDetails),
                 ChronicDiseases = chronicNew,
-                HasChronicCondition = chronicNew.Count > 0,
+                HasChronicCondition = chronicNew is { Count: > 0 },
                 RegistrationStatus = PatientRegistrationStatus.Completed,
                 UserId = user.Id,
                 PasswordHash = _passwordHasher.HashPassword(user, request.Password),
@@ -313,5 +313,14 @@ public class AuthService : IAuthService
         var parts = fullName.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         user.FirstName = parts.Length > 0 ? parts[0] : fullName.Trim();
         user.LastName = parts.Length > 1 ? parts[1] : string.Empty;
+    }
+
+    private static string? NormalizeNullableText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static List<string>? ParseChronicDiseasesOrNull(string? freeText)
+    {
+        var parsed = ChronicDiseasesInputParser.FromFreeText(freeText);
+        return parsed.Count == 0 ? null : parsed;
     }
 }

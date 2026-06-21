@@ -1,7 +1,7 @@
 {
   "format": 1,
   "restore": {
-    "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj": {}
+    "E:\\users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj": {}
   },
   "projects": {
     "E:\\users\\abood\\cursor_project\\backend_api\\Doctors.Application\\Doctors.Application.csproj": {
@@ -156,14 +156,14 @@
         }
       }
     },
-    "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj": {
+    "E:\\users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj",
+        "projectUniqueName": "E:\\users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj",
         "projectName": "Doctors.Infrastructure",
-        "projectPath": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj",
+        "projectPath": "E:\\users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\Doctors.Infrastructure.csproj",
         "packagesPath": "C:\\Users\\abood\\.nuget\\packages\\",
-        "outputPath": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\obj\\",
+        "outputPath": "E:\\users\\abood\\cursor_project\\backend_api\\Doctors.Infrastructure\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "E:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

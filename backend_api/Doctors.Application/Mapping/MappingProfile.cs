@@ -28,7 +28,8 @@ public class MappingProfile : Profile
 
         CreateMap<Patient, PatientDto>()
             .ForMember(d => d.ClinicIds, o => o.MapFrom(s => s.PatientClinics.Select(pc => pc.ClinicId).ToList()))
-            .ForMember(d => d.ChronicDiseases, o => o.MapFrom(s => (IReadOnlyList<string>)s.ChronicDiseases));
+            .ForMember(d => d.ChronicDiseases, o => o.MapFrom(s => (IReadOnlyList<string>)(s.ChronicDiseases ?? new List<string>())))
+            .ForMember(d => d.HasChronicCondition, o => o.MapFrom(s => s.HasChronicCondition ?? false));
 
         CreateMap<Appointment, AppointmentDto>()
             .ForMember(d => d.ClinicName, o => o.MapFrom(s => s.Clinic.Name))

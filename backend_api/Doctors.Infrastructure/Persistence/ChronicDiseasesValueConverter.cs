@@ -12,7 +12,7 @@ public static class ChronicDiseasesValueConverter
         WriteIndented = false
     };
 
-    public static ValueConverter<List<string>, string?> Create() =>
+    public static ValueConverter<List<string>?, string?> Create() =>
         new(
             v => ToDb(v),
             v => FromDb(v));

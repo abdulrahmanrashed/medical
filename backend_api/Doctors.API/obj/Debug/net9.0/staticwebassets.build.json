@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Hash": "U4z82CR8Vd7GqAzwgL8iEdZwV/pGeW23GEMzSYSwmu8=",
+  "Hash": "u16dh1IhWd1IaFY0MzKEjGpTlb7nOpSFGPCo+qsACjU=",
   "Source": "Doctors.API",
   "BasePath": "_content/Doctors.API",
   "Mode": "Default",
@@ -17,7 +17,7 @@
   ],
   "Assets": [
     {
-      "Identity": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.api\\wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic",
+      "Identity": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.API\\wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic",
       "SourceId": "Doctors.API",
       "SourceType": "Discovered",
       "ContentRoot": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\",
@@ -38,7 +38,7 @@
       "OriginalItemSpec": "wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic"
     },
     {
-      "Identity": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.api\\wwwroot\\uploads\\20260407\\ebeedf0919b24d0abd550a33ac7420c9.heic",
+      "Identity": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.API\\wwwroot\\uploads\\20260407\\ebeedf0919b24d0abd550a33ac7420c9.heic",
       "SourceId": "Doctors.API",
       "SourceType": "Discovered",
       "ContentRoot": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\",
@@ -59,7 +59,7 @@
       "OriginalItemSpec": "wwwroot\\uploads\\20260407\\ebeedf0919b24d0abd550a33ac7420c9.heic"
     },
     {
-      "Identity": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.api\\wwwroot\\uploads\\20260408\\bafef3e540f242f1af79c7f300c9a54d.jpg",
+      "Identity": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.API\\wwwroot\\uploads\\20260408\\bafef3e540f242f1af79c7f300c9a54d.jpg",
       "SourceId": "Doctors.API",
       "SourceType": "Discovered",
       "ContentRoot": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\",
@@ -80,7 +80,7 @@
       "OriginalItemSpec": "wwwroot\\uploads\\20260408\\bafef3e540f242f1af79c7f300c9a54d.jpg"
     },
     {
-      "Identity": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.api\\wwwroot\\uploads\\20260412\\28e3c9f15f234b7389a3d660a33cdd12.heic",
+      "Identity": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.API\\wwwroot\\uploads\\20260412\\28e3c9f15f234b7389a3d660a33cdd12.heic",
       "SourceId": "Doctors.API",
       "SourceType": "Discovered",
       "ContentRoot": "E:\\Users\\abood\\cursor_project\\backend_api\\Doctors.API\\wwwroot\\",
@@ -104,7 +104,7 @@
   "Endpoints": [
     {
       "Route": "uploads/20260407/600ff0c8612040568c1a2344be5add37.heic",
-      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.api\\wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic",
+      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.API\\wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic",
       "Selectors": [],
       "ResponseHeaders": [
         {
@@ -141,7 +141,7 @@
     },
     {
       "Route": "uploads/20260407/600ff0c8612040568c1a2344be5add37.w7u4snj0pd.heic",
-      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.api\\wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic",
+      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.API\\wwwroot\\uploads\\20260407\\600ff0c8612040568c1a2344be5add37.heic",
       "Selectors": [],
       "ResponseHeaders": [
         {
@@ -186,7 +186,7 @@
     },
     {
       "Route": "uploads/20260407/ebeedf0919b24d0abd550a33ac7420c9.heic",
-      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.api\\wwwroot\\uploads\\20260407\\ebeedf0919b24d0abd550a33ac7420c9.heic",
+      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.API\\wwwroot\\uploads\\20260407\\ebeedf0919b24d0abd550a33ac7420c9.heic",
       "Selectors": [],
       "ResponseHeaders": [
         {
@@ -223,7 +223,7 @@
     },
     {
       "Route": "uploads/20260407/ebeedf0919b24d0abd550a33ac7420c9.w7u4snj0pd.heic",
-      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.api\\wwwroot\\uploads\\20260407\\ebeedf0919b24d0abd550a33ac7420c9.heic",
+      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.API\\wwwroot\\uploads\\20260407\\ebeedf0919b24d0abd550a33ac7420c9.heic",
       "Selectors": [],
       "ResponseHeaders": [
         {
@@ -268,7 +268,7 @@
     },
     {
       "Route": "uploads/20260408/bafef3e540f242f1af79c7f300c9a54d.ikdxxnavci.jpg",
-      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.api\\wwwroot\\uploads\\20260408\\bafef3e540f242f1af79c7f300c9a54d.jpg",
+      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.API\\wwwroot\\uploads\\20260408\\bafef3e540f242f1af79c7f300c9a54d.jpg",
       "Selectors": [],
       "ResponseHeaders": [
         {
@@ -313,7 +313,7 @@
     },
     {
       "Route": "uploads/20260408/bafef3e540f242f1af79c7f300c9a54d.jpg",
-      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.api\\wwwroot\\uploads\\20260408\\bafef3e540f242f1af79c7f300c9a54d.jpg",
+      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.API\\wwwroot\\uploads\\20260408\\bafef3e540f242f1af79c7f300c9a54d.jpg",
       "Selectors": [],
       "ResponseHeaders": [
         {
@@ -350,7 +350,7 @@
     },
     {
       "Route": "uploads/20260412/28e3c9f15f234b7389a3d660a33cdd12.73vvmbv17u.heic",
-      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.api\\wwwroot\\uploads\\20260412\\28e3c9f15f234b7389a3d660a33cdd12.heic",
+      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.API\\wwwroot\\uploads\\20260412\\28e3c9f15f234b7389a3d660a33cdd12.heic",
       "Selectors": [],
       "ResponseHeaders": [
         {
@@ -395,7 +395,7 @@
     },
     {
       "Route": "uploads/20260412/28e3c9f15f234b7389a3d660a33cdd12.heic",
-      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.api\\wwwroot\\uploads\\20260412\\28e3c9f15f234b7389a3d660a33cdd12.heic",
+      "AssetFile": "E:\\users\\abood\\cursor_project\\backend_api\\doctors.API\\wwwroot\\uploads\\20260412\\28e3c9f15f234b7389a3d660a33cdd12.heic",
       "Selectors": [],
       "ResponseHeaders": [
         {

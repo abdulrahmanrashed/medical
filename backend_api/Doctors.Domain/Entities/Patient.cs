@@ -24,9 +24,9 @@ public class Patient
     public string? InsuranceDetails { get; set; }
 
     /// <summary>Persisted as JSON array of strings in the database.</summary>
-    public List<string> ChronicDiseases { get; set; } = new();
+    public List<string>? ChronicDiseases { get; set; }
 
-    public bool HasChronicCondition { get; set; }
+    public bool? HasChronicCondition { get; set; }
 
     /// <summary>DRAFT = created by reception with phone/name only; COMPLETED = patient finished app registration.</summary>
     public PatientRegistrationStatus RegistrationStatus { get; set; } = PatientRegistrationStatus.Draft;
